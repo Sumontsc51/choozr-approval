@@ -1,0 +1,8 @@
+{
+  "name": "choozr-approval",
+  "private": true,
+  "scripts": {
+    "sync": "cp shared/ai-core.js extension/ai-core.js && cp shared/ai-core.js mobile-app/src/aiCore.js",
+    "test": "node --test shared/test/ai-core.test.js"
+  }
+}
