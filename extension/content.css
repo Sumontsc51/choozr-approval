@@ -1,0 +1,60 @@
+#cae-panel {
+  position: fixed; right: 18px; bottom: 18px; z-index: 2147483000;
+  background: #fff; border: 1px solid #d9dde6; border-radius: 12px;
+  box-shadow: 0 6px 24px rgba(0,0,0,.15); padding: 10px 12px; min-width: 220px;
+  font: 13px/1.35 system-ui, -apple-system, Segoe UI, Roboto, sans-serif; color: #111;
+}
+#cae-panel.cae-busy .cae-btn { opacity: .6; pointer-events: none; }
+#cae-panel .cae-row { display: flex; gap: 6px; align-items: center; margin-top: 6px; }
+#cae-panel .cae-btn {
+  flex: 1; background: #1e40af; color: #fff; border: 0; border-radius: 8px;
+  padding: 9px 12px; font-weight: 600; font-size: 13px; cursor: pointer;
+}
+#cae-panel .cae-btn:hover { background: #1b3a9e; }
+#cae-panel .cae-gear { background: #f1f3f8; border: 0; border-radius: 8px; width: 34px; height: 34px; cursor: pointer; font-size: 16px; }
+#cae-panel .cae-status { font-weight: 700; font-size: 12px; letter-spacing: .02em; color: #666; }
+#cae-panel .cae-status.cae-pending { color: #b45309; }
+#cae-panel .cae-status.cae-approved { color: #15803d; }
+#cae-panel .cae-status.cae-rejected { color: #b91c1c; }
+#cae-panel .cae-status.cae-warn { color: #b45309; }
+#cae-panel .cae-sub { color: #666; font-size: 11px; margin-top: 4px; min-height: 14px; max-width: 260px; }
+
+#cae-tag {
+  background: #fee2e2; color: #7f1d1d; border: 1px solid #fca5a5; border-left: 6px solid #dc2626;
+  border-radius: 8px; padding: 10px 14px; margin: 8px 0 12px; font: 14px/1.4 system-ui, sans-serif;
+}
+#cae-tag b { color: #b91c1c; letter-spacing: .04em; }
+#cae-tag span { display: block; margin-top: 4px; color: #991b1b; font-size: 13px; }
+
+.cae-toast {
+  position: fixed; left: 50%; bottom: 90px; transform: translate(-50%, 20px); opacity: 0;
+  z-index: 2147483001; background: #111; color: #fff; padding: 10px 16px; border-radius: 10px;
+  font: 13px system-ui, sans-serif; transition: .25s; max-width: 80vw;
+}
+.cae-toast.show { opacity: 1; transform: translate(-50%, 0); }
+.cae-toast.ok { background: #15803d; }
+.cae-toast.err { background: #b91c1c; }
+
+/* v2: header, AI result, flagged cards */
+#cae-panel { width: 290px; }
+#cae-panel .cae-head { display: flex; justify-content: space-between; align-items: center; }
+#cae-panel .cae-min { background: none; border: 0; font-size: 18px; line-height: 1; cursor: pointer; color: #666; padding: 0 4px; }
+#cae-panel.cae-collapsed .cae-body { display: none; }
+#cae-panel .cae-ai { margin-top: 6px; }
+#cae-panel .cae-ai-run { color: #1e40af; font-size: 12px; display: flex; align-items: center; gap: 6px; }
+#cae-panel .cae-spin { width: 12px; height: 12px; border: 2px solid #bfdbfe; border-top-color: #1e40af; border-radius: 50%; display: inline-block; animation: cae-rot .8s linear infinite; }
+@keyframes cae-rot { to { transform: rotate(360deg); } }
+#cae-panel .cae-ai-v { font-weight: 700; font-size: 12px; padding: 5px 8px; border-radius: 6px; }
+#cae-panel .cae-ai-v.cae-ok { background: #dcfce7; color: #166534; }
+#cae-panel .cae-ai-v.cae-warn { background: #fef3c7; color: #92400e; }
+#cae-panel .cae-ai-v.cae-bad { background: #fee2e2; color: #991b1b; }
+#cae-panel .cae-ai-bad { color: #b91c1c; font-size: 12px; }
+#cae-panel .cae-ai-sum { font-size: 12px; color: #374151; margin-top: 4px; }
+#cae-panel .cae-ai-list { margin: 4px 0 0; padding-left: 16px; font-size: 12px; max-height: 140px; overflow: auto; }
+#cae-panel .cae-ai-list li { margin: 2px 0; }
+#cae-panel .cae-ai-list li.sev-high b { color: #b91c1c; }
+#cae-panel .cae-ai-list li.sev-medium b { color: #b45309; }
+#cae-panel .cae-ai-list span { color: #6b7280; }
+#cae-panel a[data-recheck] { color: #1e40af; font-size: 11px; cursor: pointer; text-decoration: underline; display: inline-block; margin-top: 4px; }
+.measurement-card.cae-flag { outline: 3px solid #f59e0b !important; outline-offset: -3px; position: relative; }
+.measurement-card.cae-flag::after { content: attr(data-cae); position: absolute; left: 6px; right: 6px; bottom: 4px; font: 600 10px/1.2 system-ui, sans-serif; color: #92400e; background: #fffbeb; border-radius: 4px; padding: 2px 4px; max-height: 26px; overflow: hidden; }

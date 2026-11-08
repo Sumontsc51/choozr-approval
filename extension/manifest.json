@@ -1,0 +1,41 @@
+{
+  "manifest_version": 3,
+  "name": "Choozr Approval Exporter",
+  "version": "3.0.0",
+  "description": "Exports validated Choozr measurements (front + side with lines) to the approval app, checks the points with AI, and shows approval status on the order page.",
+  "permissions": [
+    "storage",
+    "alarms"
+  ],
+  "host_permissions": [
+    "https://dash.choozr.ai/*",
+    "https://identitytoolkit.googleapis.com/*",
+    "https://securetoken.googleapis.com/*",
+    "https://firestore.googleapis.com/*",
+    "https://api.anthropic.com/*"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://dash.choozr.ai/*"
+      ],
+      "js": [
+        "content.js"
+      ],
+      "css": [
+        "content.css"
+      ],
+      "run_at": "document_idle"
+    }
+  ],
+  "options_ui": {
+    "page": "options.html",
+    "open_in_tab": true
+  },
+  "action": {
+    "default_title": "Choozr Approval Exporter \u2014 settings"
+  }
+}
