@@ -1,0 +1,79 @@
+rules_version = '2';
+// Choozr approval — free (Spark) plan: all writes come from the signed-in apps,
+// so the rules enforce who may do what.
+service cloud.firestore {
+  match /databases/{db}/documents {
+    function signedIn() { return request.auth != null; }
+    function userDoc() { return get(/databases/$(db)/documents/users/$(request.auth.uid)); }
+    function role() { return signedIn() && exists(/databases/$(db)/documents/users/$(request.auth.uid)) ? userDoc().data.role : null; }
+    function isStaff() { return role() in ['approver', 'coordinator', 'admin']; }
+    function isCoord() { return role() in ['coordinator', 'admin']; }
+    function isApprover() { return role() in ['approver', 'admin']; }
+    function isAdmin() { return role() == 'admin'; }
+    function changed() { return request.resource.data.diff(resource.data).affectedKeys(); }
+
+    // ---- people ----
+    match /users/{uid} {
+      allow read: if signedIn() && (request.auth.uid == uid || isStaff());
+      // self sign-up without a role (admin assigns it later)
+      allow create: if signedIn() && request.auth.uid == uid
+        && request.resource.data.keys().hasOnly(['email', 'name', 'role', 'createdAt'])
+        && request.resource.data.role == null;
+      // first-run: the very first user may make themselves admin (together with config/bootstrap)
+      allow create, update: if signedIn() && request.auth.uid == uid
+        && request.resource.data.role == 'admin'
+        && !exists(/databases/$(db)/documents/config/bootstrap)
+        && getAfter(/databases/$(db)/documents/config/bootstrap).data.adminUid == request.auth.uid;
+      allow update: if isAdmin()
+        || (signedIn() && request.auth.uid == uid && changed().hasOnly(['name', 'lastSeenAt']));
+      allow delete: if isAdmin() && request.auth.uid != uid;
+    }
+    match /config/bootstrap {
+      allow read: if signedIn();
+      allow create: if signedIn() && request.resource.data.adminUid == request.auth.uid
+        && getAfter(/databases/$(db)/documents/users/$(request.auth.uid)).data.role == 'admin';
+    }
+    match /config/{doc} {
+      allow read: if isStaff();
+      allow write: if isStaff() && doc != 'bootstrap';
+    }
+
+    // ---- orders ----
+    match /orders/{id} {
+      allow read: if isStaff();
+      // coordinator export: new version, always back to pending
+      allow create: if isCoord() && request.resource.data.status == 'pending'
+        && request.resource.data.version == 1 && request.resource.data.coordinatorUid == request.auth.uid;
+      allow update: if isCoord() && request.resource.data.status == 'pending'
+        && request.resource.data.version == resource.data.version + 1
+        && request.resource.data.coordinatorUid == request.auth.uid;
+      // approver decision on the current version
+      allow update: if isApprover() && resource.data.status == 'pending'
+        && request.resource.data.status in ['approved', 'rejected']
+        && request.resource.data.version == resource.data.version
+        && request.resource.data.decidedByUid == request.auth.uid
+        && changed().hasOnly(['status', 'decidedBy', 'decidedByUid', 'decidedAt', 'sortAt', 'reason', 'rejectCount']);
+      // AI result (written by the coordinator's extension or a re-check request)
+      allow update: if isStaff() && changed().hasOnly(['ai']);
+      allow delete: if isAdmin();
+
+      match /images/{img} {
+        allow read: if isStaff();
+        allow create: if isCoord() && request.resource.data.data is string && request.resource.data.data.size() < 1000000;
+        allow delete: if isStaff();
+      }
+      match /versions/{v} {
+        allow read: if isStaff();
+        allow create: if isCoord();
+        allow update: if isStaff();
+      }
+    }
+
+    // ---- AI model, learning queue, image cleanup, history ----
+    match /ai/{doc}        { allow read, write: if isStaff(); }
+    match /aiQueue/{id}    { allow read, write: if isStaff(); }
+    match /aiLessons/{id}  { allow read, create: if isStaff(); }
+    match /cleanup/{id}    { allow read, write: if isStaff(); }
+    match /log/{id}        { allow read, create: if isStaff(); }
+  }
+}
