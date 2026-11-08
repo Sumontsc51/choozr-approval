@@ -1,0 +1,56 @@
+name: Android APK + extension zip → Release "latest"
+on:
+  push:
+    branches: [main]
+    paths: ['mobile-app/**', 'extension/**', '.github/workflows/android.yml']
+  workflow_dispatch:
+permissions:
+  contents: write
+concurrency:
+  group: android
+  cancel-in-progress: true
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: mobile-app/package-lock.json
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+      - name: Check shared AI core is in sync
+        run: cmp shared/ai-core.js extension/ai-core.js && cmp shared/ai-core.js mobile-app/src/aiCore.js
+      - run: node --test shared/test/ai-core.test.js
+      - run: npm ci --no-audit --no-fund
+        working-directory: mobile-app
+      - name: Generate native Android project
+        run: npx expo prebuild --platform android --no-install
+        working-directory: mobile-app
+        env:
+          CI: '1'
+      - name: Build release APK
+        run: ./gradlew assembleRelease --no-daemon -PreactNativeArchitectures=arm64-v8a,armeabi-v7a
+        working-directory: mobile-app/android
+      - name: Collect files
+        run: |
+          cp mobile-app/android/app/build/outputs/apk/release/app-release.apk MeasurementApprover.apk
+          (cd extension && zip -r ../ChoozrExporter-extension.zip .)
+      - uses: softprops/action-gh-release@v2
+        with:
+          tag_name: latest
+          name: Latest build
+          make_latest: true
+          body: |
+            **MeasurementApprover.apk** — Android app. Download on the phone and open it (allow "install unknown apps" once).
+            **ChoozrExporter-extension.zip** — Chrome extension for coordinators. Unzip, then chrome://extensions → Developer mode → Load unpacked.
+            iPhone / any browser: https://sumontsc51.github.io/choozr-approval/
+            Built from ${{ github.sha }}
+          files: |
+            MeasurementApprover.apk
+            ChoozrExporter-extension.zip
