@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
@@ -28,6 +28,49 @@ export default function App() {
 }
 
 function Root() {
+  if (Platform.OS === 'web' && typeof location !== 'undefined' && /[?&]demo=1/.test(location.search)) return <Demo />;
+  return <AuthedRoot />;
+}
+
+/** ?demo=1 on the web link: try the gestures with sample photos, no login, nothing saved. */
+function Demo() {
+  // sample photo drawn on a canvas (JPEG data URI, same format as real exports)
+  const svg = (bg: string, label: string) => {
+    const c = document.createElement('canvas'); c.width = 600; c.height = 900;
+    const x = c.getContext('2d')!;
+    x.fillStyle = bg; x.fillRect(0, 0, 600, 900);
+    x.strokeStyle = '#ff0'; x.lineWidth = 4; x.setLineDash([10, 8]);
+    [220, 330, 420, 520, 600].forEach((y) => { x.beginPath(); x.moveTo(170, y); x.lineTo(430, y); x.stroke(); });
+    x.fillStyle = '#fff'; x.font = '64px sans-serif'; x.textAlign = 'center'; x.fillText(label, 300, 120);
+    x.fillStyle = '#ccc'; x.font = '22px sans-serif'; x.fillText('zoom in to read this small text', 300, 860);
+    return c.toDataURL('image/jpeg', 0.85);
+  };
+  const mk = (i: number): Order => ({
+    id: 'demo' + i, orderNo: String(10000 + i), customer: 'Demo customer ' + i, title: '', measuredAt: '', pageUrl: '', coordinator: 'Demo',
+    status: 'pending', version: 1, rejectCount: 0, exportedAt: new Date().toISOString(), decidedAt: '', decidedBy: '', reason: '',
+    validatedCount: 2, totalCount: 27, measurements: [{ name: 'Height', value: '170.00 cm', cm: 170 }, { name: 'Seat', value: '101.20 cm', cm: 101.2 }],
+    images: { front: 'front', side: 'side' },
+    ai: { status: 'done', forVersion: 1, verdict: i % 2 ? 'ok' : 'check', score: i % 2 ? 91 : 48, summary: 'Demo AI result.',
+      issues: i % 2 ? [] : [{ measurement: 'Seat', view: 'side', severity: 'medium', problem: 'Demo issue', source: 'stats' }], flags: i % 2 ? {} : { Seat: 'medium' } },
+  });
+  const orders = [1, 2, 3].map(mk);
+  const [idx, setIdx] = useState(0);
+  const [dir, setDir] = useState<'next' | 'prev' | null>(null);
+  const o = orders[idx];
+  return (
+    <SafeAreaView style={styles.root}>
+      <View style={styles.header}><Text style={[styles.tabText, { color: '#fff' }]}>Demo — gestures only, nothing is saved</Text></View>
+      <View style={styles.stage}>
+        <OrderSlide key={o.id} order={o} position={`${idx + 1} / 3`} direction={dir} canDecide busy={false}
+          loadImg={async (_id, img) => svg(img === 'front' ? '#334' : '#433', `${img.toUpperCase()} ${o.orderNo}`)}
+          onNext={() => { if (idx < 2) { setDir('next'); setIdx(idx + 1); } }} onPrev={() => { if (idx > 0) { setDir('prev'); setIdx(idx - 1); } }}
+          onApprove={() => {}} onReject={() => {}} onRecheck={() => {}} />
+      </View>
+    </SafeAreaView>
+  );
+}
+
+function AuthedRoot() {
   const [user, setUser] = useState<User | null | undefined>(undefined);
   const [profile, setProfile] = useState<Profile | null>(null);
 
