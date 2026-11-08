@@ -17,6 +17,7 @@ interface Props {
   onReject: () => void;
   onRecheck: () => void;
   busy: boolean;
+  loadImg?: (orderId: string, imageId: string) => Promise<string>;   // demo mode override
 }
 
 const VERDICT = {
@@ -25,12 +26,12 @@ const VERDICT = {
   wrong: { label: 'AI ✗', color: '#ef4444', text: '#fff' },
 } as const;
 
-function useImage(orderId: string, imageId: string) {
+function useImage(orderId: string, imageId: string, load: (o: string, i: string) => Promise<string> = loadImage) {
   const [state, setState] = useState<string | null>(null);
   useEffect(() => {
     let alive = true;
     setState(null);
-    loadImage(orderId, imageId).then((u) => alive && setState(u)).catch(() => alive && setState(''));
+    load(orderId, imageId).then((u) => alive && setState(u)).catch(() => alive && setState(''));
     return () => { alive = false; };
   }, [orderId, imageId]);
   return state;
@@ -42,8 +43,8 @@ export function OrderSlide(p: Props) {
   const [sheet, setSheet] = useState(false);
   const [zoomed, setZoomed] = useState(false);
   const viewer = useRef<ZoomableHandle>(null);
-  const front = useImage(order.id, order.images.front);
-  const side = useImage(order.id, order.images.side);
+  const front = useImage(order.id, order.images.front, p.loadImg);
+  const side = useImage(order.id, order.images.side, p.loadImg);
 
   useEffect(() => { setView('front'); setSheet(false); }, [order.id, order.version]);
 
