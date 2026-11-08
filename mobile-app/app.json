@@ -1,0 +1,41 @@
+{
+  "expo": {
+    "name": "Measurement Approver",
+    "slug": "choozr-approver",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "dark",
+    "backgroundColor": "#0b0d12",
+    "splash": {
+      "backgroundColor": "#0b0d12",
+      "resizeMode": "contain"
+    },
+    "ios": {
+      "bundleIdentifier": "com.prowdstudio.choozrapprover",
+      "supportsTablet": true,
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
+    },
+    "android": {
+      "package": "com.prowdstudio.choozrapprover",
+      "adaptiveIcon": {
+        "backgroundColor": "#0b0d12"
+      }
+    },
+    "plugins": [],
+    "extra": {},
+    "web": {
+      "bundler": "metro",
+      "output": "single",
+      "name": "Measurement Approver",
+      "shortName": "Approver",
+      "backgroundColor": "#0b0d12",
+      "themeColor": "#0b0d12",
+      "display": "standalone"
+    },
+    "experiments": {
+      "baseUrl": "/choozr-approval"
+    }
+  }
+}
