@@ -55,8 +55,8 @@ service cloud.firestore {
         && changed().hasOnly(['status', 'decidedBy', 'decidedByUid', 'decidedAt', 'sortAt', 'reason', 'rejectCount']);
       // AI result (written by the coordinator's extension or a re-check request)
       allow update: if isStaff() && changed().hasOnly(['ai']);
-      // archive an approved order (approver/admin) — it is deleted 5 days later
-      allow update: if isApprover() && resource.data.status == 'approved'
+      // archive an approved order (anyone on the team) — it is deleted 5 days later
+      allow update: if isStaff() && resource.data.status == 'approved'
         && request.resource.data.status == 'archived' && request.resource.data.deleteAt is timestamp
         && changed().hasOnly(['status', 'archivedAt', 'archivedBy', 'sortAt', 'deleteAt']);
       // restore from the archive (admin only)
