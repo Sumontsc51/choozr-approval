@@ -16,6 +16,9 @@ interface Props {
   onApprove: () => void;
   onReject: () => void;
   onRecheck: () => void;
+  onArchive?: () => void;      // approved -> archive (approver/admin)
+  onRestore?: () => void;      // archive -> approved (admin)
+  onDeleteNow?: () => void;    // archive -> deleted now (admin)
   busy: boolean;
   loadImg?: (orderId: string, imageId: string) => Promise<string>;   // demo mode override
 }
@@ -127,11 +130,35 @@ export function OrderSlide(p: Props) {
           </View>
         ) : pending ? (
           <View style={[st.decided, { borderLeftColor: '#f59e0b' }]}><Text style={st.decidedText}>Waiting for approver</Text></View>
+        ) : order.status === 'archived' ? (
+          <>
+            <View style={[st.decided, { borderLeftColor: '#6b7280' }]}>
+              <Text style={st.decidedText}><Text style={{ fontWeight: '800' }}>ARCHIVED</Text> by {order.archivedBy || '—'} · {fmt(order.archivedAt)}</Text>
+              <Text style={st.reason}>Approved by {order.decidedBy || '—'} · deleted automatically {fmt(order.deleteAt)}</Text>
+            </View>
+            {(p.onRestore || p.onDeleteNow) && (
+              <View style={st.btns}>
+                {p.onDeleteNow && <Pressable disabled={p.busy} onPress={p.onDeleteNow} style={({ pressed }) => [st.btn, st.reject, st.small, (pressed || p.busy) && st.pressed]}>
+                  <Text style={st.btnText}>Delete now</Text></Pressable>}
+                {p.onRestore && <Pressable disabled={p.busy} onPress={p.onRestore} style={({ pressed }) => [st.btn, st.neutral, st.small, (pressed || p.busy) && st.pressed]}>
+                  <Text style={st.btnText}>↩  Restore</Text></Pressable>}
+              </View>
+            )}
+          </>
         ) : (
-          <View style={[st.decided, order.status === 'approved' ? st.decidedOk : st.decidedBad]}>
-            <Text style={st.decidedText}><Text style={{ fontWeight: '800' }}>{order.status.toUpperCase()}</Text> by {order.decidedBy || '—'} · {fmt(order.decidedAt)}</Text>
-            {!!order.reason && <Text style={st.reason}>“{order.reason}”</Text>}
-          </View>
+          <>
+            <View style={[st.decided, order.status === 'approved' ? st.decidedOk : st.decidedBad]}>
+              <Text style={st.decidedText}><Text style={{ fontWeight: '800' }}>{order.status.toUpperCase()}</Text> by {order.decidedBy || '—'} · {fmt(order.decidedAt)}</Text>
+              {!!order.reason && <Text style={st.reason}>“{order.reason}”</Text>}
+            </View>
+            {order.status === 'approved' && p.onArchive && (
+              <View style={st.btns}>
+                <Pressable disabled={p.busy} onPress={p.onArchive} style={({ pressed }) => [st.btn, st.neutral, st.small, (pressed || p.busy) && st.pressed]}>
+                  <Text style={st.btnText}>🗄  Archive</Text>
+                </Pressable>
+              </View>
+            )}
+          </>
         )}
       </View>
     </Animated.View>
@@ -191,6 +218,7 @@ const st = StyleSheet.create({
   badge_pending: { backgroundColor: '#f59e0b' },
   badge_approved: { backgroundColor: '#22c55e' },
   badge_rejected: { backgroundColor: '#ef4444' },
+  badge_archived: { backgroundColor: '#6b7280' },
   badgeText: { color: '#fff', fontSize: 11, fontWeight: '800', letterSpacing: 1 },
   aiBadge: { position: 'absolute', top: 10, right: 10, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 10, paddingVertical: 5, borderRadius: 999 },
   aiText: { color: '#fff', fontSize: 12, fontWeight: '800' },
@@ -223,6 +251,8 @@ const st = StyleSheet.create({
   btn: { flex: 1, borderRadius: 12, paddingVertical: 14, alignItems: 'center' },
   approve: { backgroundColor: '#22c55e' },
   reject: { backgroundColor: '#ef4444' },
+  neutral: { backgroundColor: '#374151' },
+  small: { paddingVertical: 11 },
   pressed: { opacity: 0.6 },
   btnText: { color: '#fff', fontSize: 16, fontWeight: '800' },
   decided: { marginTop: 8, padding: 10, borderRadius: 8, backgroundColor: '#0f1219', borderLeftWidth: 4 },

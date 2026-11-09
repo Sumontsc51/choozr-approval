@@ -1,4 +1,4 @@
-export type Status = 'pending' | 'approved' | 'rejected';
+export type Status = 'pending' | 'approved' | 'rejected' | 'archived';
 export type Role = 'approver' | 'coordinator' | 'admin';
 
 export interface Measurement { name: string; value: string; cm: number | null; }
@@ -42,6 +42,9 @@ export interface Order {
   totalCount: number;
   measurements: Measurement[];
   images: { front: string; side: string };
+  archivedAt: string;      // ISO or ''
+  archivedBy: string;
+  deleteAt: string;        // ISO or '' — archived orders are deleted at this time
   ai: AiResult | null;
 }
 

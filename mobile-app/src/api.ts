@@ -18,11 +18,12 @@ function toOrder(id: string, d: any): Order {
     decidedBy: d.decidedBy ?? '', reason: d.reason ?? '', validatedCount: Number(d.validatedCount ?? 0),
     totalCount: Number(d.totalCount ?? 0), measurements: d.measurements ?? [],
     images: d.images ?? { front: `v${d.version}_front`, side: `v${d.version}_side` }, ai: d.ai ?? null,
+    archivedAt: iso(d.archivedAt), archivedBy: d.archivedBy ?? '', deleteAt: iso(d.deleteAt),
   };
 }
 
 // ---------------------------------------------------------------- live data
-/** Pending: oldest first (work queue). Approved / rejected: newest first. */
+/** Pending: oldest first (work queue). Approved / rejected / archived: newest first. */
 export function subscribeOrders(status: Status, cb: (orders: Order[]) => void, onError: (e: Error) => void) {
   const q = query(collection(db, 'orders'), where('status', '==', status), orderBy('sortAt', 'desc'), limit(200));
   return onSnapshot(q, (snap) => {
@@ -170,4 +171,53 @@ export function subscribeAi(cb: (a: { accuracy: AiStats; rules: PlaybookRule[]; 
     onSnapshot(doc(db, 'config', 'ai'), (s) => { claude = !!s.data()?.claudeEnabled; emit(); }, () => {}),
   ];
   return () => u.forEach((f) => f());
+}
+
+// ---------------------------------------------------------------- archive (admin)
+export const ARCHIVE_DAYS = 5;
+
+/** Approved -> archived. The whole order (photos, history, record) is deleted ARCHIVE_DAYS later. */
+export async function archiveOrder(o: Order, me: Profile) {
+  const now = Timestamp.now();
+  const deleteAt = Timestamp.fromMillis(now.toMillis() + ARCHIVE_DAYS * DAY);
+  const b = writeBatch(db);
+  b.update(doc(db, 'orders', o.id), { status: 'archived', archivedAt: now, archivedBy: me.name || me.email, sortAt: now, deleteAt });
+  b.set(doc(db, 'purge', o.id), { orderId: o.id, version: o.version, deleteAt });
+  b.set(doc(collection(db, 'log')), { event: 'archived', orderId: o.id, orderNo: o.orderNo, by: me.name || me.email, at: now });
+  await b.commit();
+}
+
+/** Admin: archived -> approved again (cancels the deletion). */
+export async function restoreOrder(o: Order, me: Profile) {
+  const now = Timestamp.now();
+  const b = writeBatch(db);
+  b.update(doc(db, 'orders', o.id), { status: 'approved', archivedAt: null, archivedBy: '', sortAt: now, deleteAt: null });
+  b.delete(doc(db, 'purge', o.id));
+  b.set(doc(collection(db, 'log')), { event: 'restored', orderId: o.id, orderNo: o.orderNo, by: me.name || me.email, at: now });
+  await b.commit();
+}
+
+/** Permanently deletes an archived order: photos, version history, cleanup jobs and the order itself. */
+export async function purgeOrder(orderId: string, version: number) {
+  const b = writeBatch(db);
+  for (let v = 1; v <= version; v++) {
+    b.delete(doc(db, 'orders', orderId, 'images', `v${v}_front`));
+    b.delete(doc(db, 'orders', orderId, 'images', `v${v}_side`));
+    b.delete(doc(db, 'orders', orderId, 'versions', `v${v}`));
+  }
+  b.delete(doc(db, 'cleanup', orderId));
+  b.delete(doc(db, 'purge', orderId));
+  b.delete(doc(db, 'orders', orderId));
+  await b.commit();
+}
+
+/** Deletes archived orders whose 5 days are over. Runs when the app opens (with the 7-day photo cleanup). */
+export async function purgeExpired() {
+  const due = await getDocs(query(collection(db, 'purge'), where('deleteAt', '<=', Timestamp.now()), limit(20)));
+  for (const pdoc of due.docs) {
+    const o = await getDoc(doc(db, 'orders', pdoc.get('orderId')));
+    if (!o.exists() || o.get('status') !== 'archived') { await deleteDoc(pdoc.ref); continue; }   // restored or gone
+    await purgeOrder(o.id, Number(o.get('version') ?? 1));
+  }
+  return due.size;
 }
