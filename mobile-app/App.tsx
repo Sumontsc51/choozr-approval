@@ -195,7 +195,7 @@ function Main({ profile }: { profile: Profile }) {
             onNext={() => go('next')} onPrev={() => go('prev')}
             onApprove={() => doDecide('approved')} onReject={() => setRejecting(order)}
             onRecheck={() => recheck(order).then(() => say('AI re-check requested — runs on the coordinator PC')).catch((e) => say(e.message, 'err'))}
-            onArchive={canDecide ? () => act(() => archiveOrder(order, profile), `Archived #${order.orderNo} — deleted in ${ARCHIVE_DAYS} days`) : undefined}
+            onArchive={() => act(() => archiveOrder(order, profile), `Archived #${order.orderNo} — deleted in ${ARCHIVE_DAYS} days`)}
             onRestore={isAdmin ? () => act(() => restoreOrder(order, profile), `Restored #${order.orderNo} to Approved`) : undefined}
             onDeleteNow={isAdmin ? () => ask('Delete order', `Permanently delete order #${order.orderNo} with its photos? This cannot be undone.`,
               () => act(() => purgeOrder(order.id, order.version), `Deleted #${order.orderNo}`)) : undefined}
