@@ -215,6 +215,7 @@
     const v = s.version ? ` · v${s.version}` : '';
     if (s.status === 'pending') { el.textContent = `Waiting for approval${v}`; setSub('Exported ' + fmt(s.exportedAt)); }
     else if (s.status === 'approved') { el.textContent = `APPROVED${v}`; setSub(`by ${s.decidedBy || '—'} · ${fmt(s.decidedAt)}`); }
+    else if (s.status === 'archived') { el.textContent = `ARCHIVED${v}`; setSub(`approved by ${s.decidedBy || '—'} · archived, will be deleted`); }
     else if (s.status === 'rejected') { el.textContent = `REJECTED${v}`; setSub(`by ${s.decidedBy || '—'} · ${fmt(s.decidedAt)}`); showRejectedTag(s); }
     renderAi(s.ai, s.version);
   }
