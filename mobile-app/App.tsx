@@ -1,19 +1,19 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Alert, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import * as Haptics from 'expo-haptics';
 import { onAuthStateChanged, type User } from 'firebase/auth';
 import { auth } from './src/firebase';
-import { cleanupExpired, decide, recheck, subscribeOrders, subscribeProfile } from './src/api';
+import { archiveOrder, cleanupExpired, decide, purgeExpired, purgeOrder, recheck, restoreOrder, subscribeOrders, subscribeProfile, ARCHIVE_DAYS } from './src/api';
 import type { Order, Profile, Status } from './src/types';
 import { OrderSlide } from './src/OrderSlide';
 import { RejectModal } from './src/RejectModal';
 import { LoginScreen, NoRoleScreen } from './src/LoginScreen';
 import { AccountScreen } from './src/AccountScreen';
 
-const TABS: Status[] = ['pending', 'approved', 'rejected'];
+const TABS: Status[] = ['pending', 'approved', 'rejected', 'archived'];
 type Lists = Record<Status, Order[]>;
 
 export default function App() {
@@ -49,7 +49,7 @@ function Demo() {
     id: 'demo' + i, orderNo: String(10000 + i), customer: 'Demo customer ' + i, title: '', measuredAt: '', pageUrl: '', coordinator: 'Demo',
     status: 'pending', version: 1, rejectCount: 0, exportedAt: new Date().toISOString(), decidedAt: '', decidedBy: '', reason: '',
     validatedCount: 2, totalCount: 27, measurements: [{ name: 'Height', value: '170.00 cm', cm: 170 }, { name: 'Seat', value: '101.20 cm', cm: 101.2 }],
-    images: { front: 'front', side: 'side' },
+    images: { front: 'front', side: 'side' }, archivedAt: '', archivedBy: '', deleteAt: '',
     ai: { status: 'done', forVersion: 1, verdict: i % 2 ? 'ok' : 'check', score: i % 2 ? 91 : 48, summary: 'Demo AI result.',
       issues: i % 2 ? [] : [{ measurement: 'Seat', view: 'side', severity: 'medium', problem: 'Demo issue', source: 'stats' }], flags: i % 2 ? {} : { Seat: 'medium' } },
   });
@@ -79,7 +79,7 @@ function AuthedRoot() {
   // 7-day screenshot cleanup runs whenever a team member has the app open (free plan has no server jobs)
   useEffect(() => {
     if (!profile?.role) return;
-    const run = () => cleanupExpired().catch(() => {});
+    const run = () => { cleanupExpired().catch(() => {}); purgeExpired().catch(() => {}); };
     run();
     const t = setInterval(run, 3600 * 1000);
     return () => clearInterval(t);
@@ -94,7 +94,9 @@ function AuthedRoot() {
 function Main({ profile }: { profile: Profile }) {
   const canDecide = profile.role === 'approver' || profile.role === 'admin';
   const [tab, setTab] = useState<Status>(canDecide ? 'pending' : 'rejected');
-  const [lists, setLists] = useState<Lists>({ pending: [], approved: [], rejected: [] });
+  const isAdmin = profile.role === 'admin';
+  const tabs = TABS.filter((t) => t !== 'archived' || isAdmin);   // archive page: admins only
+  const [lists, setLists] = useState<Lists>({ pending: [], approved: [], rejected: [], archived: [] });
   const [loaded, setLoaded] = useState(false);
   const [idx, setIdx] = useState(0);
   const [dir, setDir] = useState<'next' | 'prev' | null>(null);
@@ -114,7 +116,7 @@ function Main({ profile }: { profile: Profile }) {
 
   // Live lists (Firestore listeners) — new exports, AI results and decisions appear instantly.
   useEffect(() => {
-    const unsubs = TABS.map((s) => subscribeOrders(s, (orders) => {
+    const unsubs = tabs.map((s) => subscribeOrders(s, (orders) => {
       setLists((l) => ({ ...l, [s]: orders }));
       setLoaded(true);
     }, (e) => say('Sync error: ' + e.message, 'err')));
@@ -156,16 +158,26 @@ function Main({ profile }: { profile: Profile }) {
     } finally { setBusy(false); }
   };
 
+  const ask = (title: string, msg: string, yes: () => void) => {
+    if (Platform.OS === 'web') { if (window.confirm(`${title}\n\n${msg}`)) yes(); return; }
+    Alert.alert(title, msg, [{ text: 'Cancel', style: 'cancel' }, { text: 'Yes', style: 'destructive', onPress: yes }]);
+  };
+  const act = async (fn: () => Promise<unknown>, okMsg: string) => {
+    setBusy(true);
+    try { currentId.current = current[idx + 1]?.id; setDir('next'); await fn(); say(okMsg, 'ok'); }
+    catch (e: any) { say(e.message, 'err'); } finally { setBusy(false); }
+  };
+
   if (account) return <AccountScreen profile={profile} onClose={() => setAccount(false)} />;
 
   return (
     <SafeAreaView style={styles.root} edges={['top', 'bottom']}>
       <View style={styles.header}>
         <View style={styles.tabs}>
-          {TABS.map((t) => (
+          {tabs.map((t) => (
             <Pressable key={t} onPress={() => switchTab(t)} style={[styles.tab, tab === t && styles.tabOn]}>
               <Text style={[styles.tabText, tab === t && styles.tabTextOn]} numberOfLines={1}>
-                {t[0].toUpperCase() + t.slice(1)}{lists[t].length ? ` ${lists[t].length}` : ''}
+                {t === 'archived' ? 'Archive' : t[0].toUpperCase() + t.slice(1)}{lists[t].length ? ` ${lists[t].length}` : ''}
               </Text>
             </Pressable>
           ))}
@@ -183,12 +195,16 @@ function Main({ profile }: { profile: Profile }) {
             onNext={() => go('next')} onPrev={() => go('prev')}
             onApprove={() => doDecide('approved')} onReject={() => setRejecting(order)}
             onRecheck={() => recheck(order).then(() => say('AI re-check requested — runs on the coordinator PC')).catch((e) => say(e.message, 'err'))}
+            onArchive={canDecide ? () => act(() => archiveOrder(order, profile), `Archived #${order.orderNo} — deleted in ${ARCHIVE_DAYS} days`) : undefined}
+            onRestore={isAdmin ? () => act(() => restoreOrder(order, profile), `Restored #${order.orderNo} to Approved`) : undefined}
+            onDeleteNow={isAdmin ? () => ask('Delete order', `Permanently delete order #${order.orderNo} with its photos? This cannot be undone.`,
+              () => act(() => purgeOrder(order.id, order.version), `Deleted #${order.orderNo}`)) : undefined}
             busy={busy} />
         ) : (
           <View style={styles.center}>
             <Text style={styles.bigIcon}>{tab === 'pending' ? '✓' : '—'}</Text>
-            <Text style={styles.emptyText}>{tab === 'pending' ? 'No orders waiting for approval' : `No ${tab} orders`}</Text>
-            <Text style={styles.hint}>New exports appear here automatically.</Text>
+            <Text style={styles.emptyText}>{tab === 'pending' ? 'No orders waiting for approval' : tab === 'archived' ? 'Archive is empty' : `No ${tab} orders`}</Text>
+            <Text style={styles.hint}>{tab === 'archived' ? `Archived orders are deleted ${ARCHIVE_DAYS} days after archiving.` : 'New exports appear here automatically.'}</Text>
           </View>
         )}
         {toast && (
