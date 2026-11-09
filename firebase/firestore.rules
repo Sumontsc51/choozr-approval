@@ -55,7 +55,16 @@ service cloud.firestore {
         && changed().hasOnly(['status', 'decidedBy', 'decidedByUid', 'decidedAt', 'sortAt', 'reason', 'rejectCount']);
       // AI result (written by the coordinator's extension or a re-check request)
       allow update: if isStaff() && changed().hasOnly(['ai']);
-      allow delete: if isAdmin();
+      // archive an approved order (approver/admin) — it is deleted 5 days later
+      allow update: if isApprover() && resource.data.status == 'approved'
+        && request.resource.data.status == 'archived' && request.resource.data.deleteAt is timestamp
+        && changed().hasOnly(['status', 'archivedAt', 'archivedBy', 'sortAt', 'deleteAt']);
+      // restore from the archive (admin only)
+      allow update: if isAdmin() && resource.data.status == 'archived' && request.resource.data.status == 'approved'
+        && changed().hasOnly(['status', 'archivedAt', 'archivedBy', 'sortAt', 'deleteAt']);
+      // delete: admin any time; anyone on the team once an archived order's 5 days are over (auto cleanup)
+      allow delete: if isAdmin()
+        || (isStaff() && resource.data.status == 'archived' && resource.data.deleteAt <= request.time);
 
       match /images/{img} {
         allow read: if isStaff();
@@ -66,6 +75,7 @@ service cloud.firestore {
         allow read: if isStaff();
         allow create: if isCoord();
         allow update: if isStaff();
+        allow delete: if isStaff();
       }
     }
 
@@ -74,6 +84,7 @@ service cloud.firestore {
     match /aiQueue/{id}    { allow read, write: if isStaff(); }
     match /aiLessons/{id}  { allow read, create: if isStaff(); }
     match /cleanup/{id}    { allow read, write: if isStaff(); }
+    match /purge/{id}      { allow read, write: if isStaff(); }
     match /log/{id}        { allow read, create: if isStaff(); }
   }
 }
