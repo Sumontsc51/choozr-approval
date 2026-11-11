@@ -59,3 +59,12 @@
 .measurement-card.cae-flag { outline: 3px solid #f59e0b !important; outline-offset: -3px; position: relative; }
 .measurement-card.cae-flag::after { content: attr(data-cae); position: absolute; left: 6px; right: 6px; bottom: 4px; font: 600 10px/1.2 system-ui, sans-serif; color: #92400e; background: #fffbeb; border-radius: 4px; padding: 2px 4px; max-height: 26px; overflow: hidden; }
 #cae-panel .cae-status.cae-archived { color: #6b7280; }
+
+/* v3.2: rise + note form */
+#cae-panel .cae-form { margin-top: 8px; border-top: 1px solid #e5e7eb; padding-top: 6px; }
+#cae-panel .cae-label { font-size: 11px; font-weight: 700; color: #6b7280; text-transform: uppercase; letter-spacing: .04em; margin: 4px 0 3px; }
+#cae-panel .cae-rise { display: grid; grid-template-columns: 1fr 1fr; gap: 2px 8px; font-size: 12px; }
+#cae-panel .cae-rise label { display: flex; align-items: center; gap: 5px; cursor: pointer; }
+#cae-panel .cae-rise input { margin: 0; }
+#cae-panel #cae-rise-specific, #cae-panel #cae-note { width: 100%; box-sizing: border-box; margin-top: 5px; padding: 6px 8px; border: 1px solid #cfd4de; border-radius: 6px; font: 12px system-ui, sans-serif; color: #111; background: #fff; }
+#cae-panel #cae-note { resize: vertical; min-height: 34px; }

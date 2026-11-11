@@ -91,6 +91,26 @@
     return send({ type: 'capture', rect, dpr: window.devicePixelRatio || 1 });   // base64 JPEG
   }
 
+  // ---------- rise + note form ----------
+  const RISES = ['Ultra high rise', 'High rise', 'Mid rise', 'Low rise'];
+  let formDirty = false;
+  function readForm() {
+    const p = document.getElementById(PANEL_ID);
+    return {
+      rise: [...p.querySelectorAll('.cae-rise input:checked')].map((i) => i.value),
+      riseSpecific: p.querySelector('#cae-rise-specific').value.trim(),
+      note: p.querySelector('#cae-note').value.trim(),
+    };
+  }
+  function fillForm(v) {
+    const p = document.getElementById(PANEL_ID);
+    if (!p) return;
+    const rise = (v && v.rise) || [];
+    p.querySelectorAll('.cae-rise input').forEach((i) => { i.checked = rise.includes(i.value); });
+    p.querySelector('#cae-rise-specific').value = (v && v.riseSpecific) || '';
+    p.querySelector('#cae-note').value = (v && v.note) || '';
+  }
+
   // ---------- export ----------
   async function doExport() {
     if (busy) return;
@@ -100,6 +120,7 @@
     if (!ms.length && !confirm('No measurement is validated (green tick) yet. Export anyway?')) return;
     if (last?.status === 'approved' && !confirm('This order is already APPROVED. Export a new version for approval again?')) return;
     busy = true;
+    const form = readForm();
     const panel = document.getElementById(PANEL_ID);
     panel.classList.add('cae-busy');
     const hide = async () => { panel.style.visibility = 'hidden'; await sleep(80); };
@@ -123,7 +144,9 @@
         id, customerId: customerId(), orderNo: info.orderNo, customer: info.customer, title: info.title,
         measuredAt: measurementDate(), pageUrl: location.href.split('#')[0],
         totalCount: allMeasurementsCount(), measurements: ms, front, side,
+        rise: form.rise, riseSpecific: form.riseSpecific, note: form.note,
       } });
+      formDirty = false;
       toast(`Exported v${s.version} to the approver`, 'ok');
       render(s);
       schedulePoll(20000);
@@ -149,6 +172,12 @@
       <div class="cae-body">
         <div class="cae-sub" id="cae-sub"></div>
         <div class="cae-ai" id="cae-ai"></div>
+        <div class="cae-form">
+          <div class="cae-label">Rise</div>
+          <div class="cae-rise">${RISES.map((r) => `<label><input type="checkbox" value="${r}"> ${r}</label>`).join('')}</div>
+          <input id="cae-rise-specific" type="text" maxlength="60" placeholder="Specific rise (e.g. 11.5 in)">
+          <textarea id="cae-note" maxlength="1000" rows="2" placeholder="Note for the approver"></textarea>
+        </div>
         <div class="cae-row">
           <button class="cae-btn" id="cae-export">Export to approver</button>
           <button class="cae-gear" id="cae-settings" title="Settings">⚙</button>
@@ -158,6 +187,7 @@
     p.querySelector('#cae-export').addEventListener('click', doExport);
     p.querySelector('#cae-settings').addEventListener('click', () => send({ type: 'openOptions' }).catch(() => {}));
     p.querySelector('#cae-min').addEventListener('click', () => p.classList.toggle('cae-collapsed'));
+    p.querySelector('.cae-form').addEventListener('input', () => { formDirty = true; });
     p.querySelector('#cae-ai').addEventListener('click', async (e) => {
       if (!e.target.closest('[data-recheck]')) return;
       try { renderAi({ status: 'running' }); render(await send({ type: 'recheck', id: currentId })); toast('AI re-checked', 'ok'); } catch (err) { toast(err.message, 'err'); }
@@ -208,6 +238,7 @@
     last = s;
     const el = document.getElementById('cae-status');
     if (!el) return;
+    if (s && s.status && !formDirty) fillForm(s);   // show what was sent last time
     el.className = 'cae-status';
     removeTag();
     if (!s || !s.status) { el.textContent = 'Not exported yet'; setSub(''); renderAi(null); return; }
@@ -256,6 +287,7 @@
     if (id === currentId) return;
     currentId = id;
     last = null;
+    formDirty = false; fillForm(null);
     removeTag();
     render(null);
     document.getElementById('cae-status').textContent = 'Loading…';

@@ -81,6 +81,8 @@ async function exportOrder(p) {
     status: 'pending', version, rejectCount: prev?.data.rejectCount || 0,
     exportedAt: now, sortAt: now, decidedBy: '', decidedByUid: '', decidedAt: null, reason: '',
     validatedCount: measurements.length, totalCount: p.totalCount || 0, measurements,
+    rise: (Array.isArray(p.rise) ? p.rise : []).slice(0, 4).map((r) => String(r).slice(0, 40)),
+    riseSpecific: String(p.riseSpecific || '').slice(0, 60), note: String(p.note || '').slice(0, 1000),
     images: { front: imgFront, side: imgSide },
     ai: { status: 'running', forVersion: version },
   };
@@ -128,6 +130,7 @@ function publicStatus(o) {
   return {
     id: o.id, orderNo: o.orderNo, status: o.status, version: o.version, exportedAt: o.exportedAt,
     decidedBy: o.decidedBy, decidedAt: o.decidedAt, reason: o.reason, rejectCount: o.rejectCount, ai: o.ai || null,
+    rise: o.rise || [], riseSpecific: o.riseSpecific || '', note: o.note || '',
   };
 }
 async function status(id) {
