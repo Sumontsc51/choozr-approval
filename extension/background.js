@@ -72,7 +72,11 @@ async function exportOrder(p) {
   const prev = await FB.get(`orders/${id}`);
   const version = (prev?.data.version || 0) + 1;
   const now = new Date();
-  const measurements = (p.measurements || []).map((m) => ({ name: m.name, value: m.value, cm: AICore.toCm(m.value) }));
+  // measurements are always sent in inches (converted when Choozr is showing cm)
+  const measurements = (p.measurements || []).map((m) => {
+    const cm = AICore.toCm(m.value);
+    return { name: m.name, value: cm != null ? `${(cm / 2.54).toFixed(2)} in` : m.value, cm };
+  });
   const imgFront = `v${version}_front`, imgSide = `v${version}_side`;
   const order = {
     id, orderNo: p.orderNo || '', customer: p.customer || '', title: p.title || '', customerId: p.customerId || '',

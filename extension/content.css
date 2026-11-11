@@ -57,7 +57,7 @@
 #cae-panel .cae-ai-list span { color: #6b7280; }
 #cae-panel a[data-recheck] { color: #1e40af; font-size: 11px; cursor: pointer; text-decoration: underline; display: inline-block; margin-top: 4px; }
 .measurement-card.cae-flag { outline: 3px solid #f59e0b !important; outline-offset: -3px; position: relative; }
-.measurement-card.cae-flag::after { content: attr(data-cae); position: absolute; left: 6px; right: 6px; bottom: 4px; font: 600 10px/1.2 system-ui, sans-serif; color: #92400e; background: #fffbeb; border-radius: 4px; padding: 2px 4px; max-height: 26px; overflow: hidden; }
+.measurement-card.cae-flag::after { content: attr(data-cae); position: absolute; left: 6px; right: 6px; top: 6px; pointer-events: none; transition: opacity .12s; font: 600 10px/1.2 system-ui, sans-serif; color: #92400e; background: #fffbeb; border-radius: 4px; padding: 2px 4px; max-height: 26px; overflow: hidden; }
 #cae-panel .cae-status.cae-archived { color: #6b7280; }
 
 /* v3.2: rise + note form */
@@ -68,3 +68,5 @@
 #cae-panel .cae-rise input { margin: 0; }
 #cae-panel #cae-rise-specific, #cae-panel #cae-note { width: 100%; box-sizing: border-box; margin-top: 5px; padding: 6px 8px; border: 1px solid #cfd4de; border-radius: 6px; font: 12px system-ui, sans-serif; color: #111; background: #fff; }
 #cae-panel #cae-note { resize: vertical; min-height: 34px; }
+/* the AI tag sits at the top of the card (clear of the value) and disappears while the mouse is on the card */
+.measurement-card.cae-flag:hover::after { opacity: 0; }
