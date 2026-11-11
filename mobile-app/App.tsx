@@ -6,7 +6,7 @@ import { StatusBar } from 'expo-status-bar';
 import * as Haptics from 'expo-haptics';
 import { onAuthStateChanged, type User } from 'firebase/auth';
 import { auth } from './src/firebase';
-import { archiveOrder, cleanupExpired, decide, purgeExpired, purgeOrder, recheck, restoreOrder, subscribeOrders, subscribeProfile, ARCHIVE_DAYS } from './src/api';
+import { archiveOrder, saveMarks, cleanupExpired, decide, purgeExpired, purgeOrder, recheck, restoreOrder, subscribeOrders, subscribeProfile, ARCHIVE_DAYS } from './src/api';
 import type { Order, Profile, Status } from './src/types';
 import { OrderSlide } from './src/OrderSlide';
 import { RejectModal } from './src/RejectModal';
@@ -50,6 +50,8 @@ function Demo() {
     status: 'pending', version: 1, rejectCount: 0, exportedAt: new Date().toISOString(), decidedAt: '', decidedBy: '', reason: '',
     validatedCount: 2, totalCount: 27, measurements: [{ name: 'Height', value: '170.00 cm', cm: 170 }, { name: 'Seat', value: '101.20 cm', cm: 101.2 }],
     images: { front: 'front', side: 'side' }, archivedAt: '', archivedBy: '', deleteAt: '',
+    rise: i % 2 ? ['High rise'] : ['Mid rise', 'Low rise'], riseSpecific: i % 2 ? '' : '10.5 in', note: i === 1 ? 'Customer wants a relaxed fit. Please check the seat line in the side view.' : '',
+    marks: { front: [], side: [] },
     ai: { status: 'done', forVersion: 1, verdict: i % 2 ? 'ok' : 'check', score: i % 2 ? 91 : 48, summary: 'Demo AI result.',
       issues: i % 2 ? [] : [{ measurement: 'Seat', view: 'side', severity: 'medium', problem: 'Demo issue', source: 'stats' }], flags: i % 2 ? {} : { Seat: 'medium' } },
   });
@@ -61,7 +63,7 @@ function Demo() {
     <SafeAreaView style={styles.root}>
       <View style={styles.header}><Text style={[styles.tabText, { color: '#fff' }]}>Demo — gestures only, nothing is saved</Text></View>
       <View style={styles.stage}>
-        <OrderSlide key={o.id} order={o} position={`${idx + 1} / 3`} direction={dir} canDecide busy={false}
+        <OrderSlide key={o.id} order={o} position={`${idx + 1} / 3`} direction={dir} canDecide canMark onSaveMarks={async () => {}} busy={false}
           loadImg={async (_id, img) => svg(img === 'front' ? '#334' : '#433', `${img.toUpperCase()} ${o.orderNo}`)}
           onNext={() => { if (idx < 2) { setDir('next'); setIdx(idx + 1); } }} onPrev={() => { if (idx > 0) { setDir('prev'); setIdx(idx - 1); } }}
           onApprove={() => {}} onReject={() => {}} onRecheck={() => {}} />
@@ -199,6 +201,7 @@ function Main({ profile }: { profile: Profile }) {
             onRestore={isAdmin ? () => act(() => restoreOrder(order, profile), `Restored #${order.orderNo} to Approved`) : undefined}
             onDeleteNow={isAdmin ? () => ask('Delete order', `Permanently delete order #${order.orderNo} with its photos? This cannot be undone.`,
               () => act(() => purgeOrder(order.id, order.version), `Deleted #${order.orderNo}`)) : undefined}
+            canMark={canDecide} onSaveMarks={(m) => saveMarks(order, m).catch((e) => say('Could not save drawings: ' + e.message, 'err'))}
             busy={busy} />
         ) : (
           <View style={styles.center}>
