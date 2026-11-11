@@ -55,6 +55,8 @@ service cloud.firestore {
         && changed().hasOnly(['status', 'decidedBy', 'decidedByUid', 'decidedAt', 'sortAt', 'reason', 'rejectCount']);
       // AI result (written by the coordinator's extension or a re-check request)
       allow update: if isStaff() && changed().hasOnly(['ai']);
+      // approver's drawings on the photos (pen / line / circle / text)
+      allow update: if isApprover() && changed().hasOnly(['marks']);
       // archive an approved order (anyone on the team) — it is deleted 5 days later
       allow update: if isStaff() && resource.data.status == 'approved'
         && request.resource.data.status == 'archived' && request.resource.data.deleteAt is timestamp
