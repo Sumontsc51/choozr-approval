@@ -45,7 +45,19 @@ export interface Order {
   archivedAt: string;      // ISO or ''
   archivedBy: string;
   deleteAt: string;        // ISO or '' — archived orders are deleted at this time
+  rise: string[];          // e.g. ['High rise']
+  riseSpecific: string;    // free text, e.g. '11.5 in'
+  note: string;            // coordinator's note for the approver
+  marks: Marks;            // approver's drawings on the photos
   ai: AiResult | null;
 }
+
+/** A drawing on a photo. Coordinates are 0..1 of the image (x of width, y of height). */
+export type Shape =
+  | { type: 'pen'; color: string; pts: number[] }                 // flat [x0,y0,x1,y1,…]
+  | { type: 'line'; color: string; a: number[]; b: number[] }
+  | { type: 'circle'; color: string; a: number[]; r: number }     // centre, radius as a share of the width
+  | { type: 'text'; color: string; a: number[]; text: string };
+export interface Marks { front: Shape[]; side: Shape[]; }
 
 export interface Profile { uid: string; exists: boolean; email: string; name: string; role: Role | null; }

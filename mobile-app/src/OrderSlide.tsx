@@ -1,8 +1,8 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import Animated, { FadeIn, SlideInDown, SlideInUp, SlideOutDown, SlideOutUp } from 'react-native-reanimated';
-import type { AiResult, Order } from './types';
-import { ZoomableHandle, ZoomableViewer } from './ZoomableViewer';
+import type { AiResult, Marks, Order, Shape } from './types';
+import { DrawTool, ZoomableHandle, ZoomableViewer } from './ZoomableViewer';
 import { fmt } from './util';
 import { loadImage } from './api';
 
@@ -19,6 +19,8 @@ interface Props {
   onArchive?: () => void;      // approved -> archive (approver/admin)
   onRestore?: () => void;      // archive -> approved (admin)
   onDeleteNow?: () => void;    // archive -> deleted now (admin)
+  canMark?: boolean;                                  // approver/admin may draw on the photos
+  onSaveMarks?: (m: Marks) => Promise<unknown>;
   busy: boolean;
   loadImg?: (orderId: string, imageId: string) => Promise<string>;   // demo mode override
 }
@@ -28,6 +30,11 @@ const VERDICT = {
   check: { label: 'AI ?', color: '#f59e0b', text: '#111' },
   wrong: { label: 'AI ✗', color: '#ef4444', text: '#fff' },
 } as const;
+
+const COLORS = ['#ff2d2d', '#ffe600', '#22d3ee', '#ffffff'];
+const TOOLS: { id: DrawTool; icon: string }[] = [
+  { id: null, icon: '✋' }, { id: 'pen', icon: '✎' }, { id: 'line', icon: '╱' }, { id: 'circle', icon: '◯' }, { id: 'text', icon: 'T' },
+];
 
 function useImage(orderId: string, imageId: string, load: (o: string, i: string) => Promise<string> = loadImage) {
   const [state, setState] = useState<string | null>(null);
@@ -51,6 +58,26 @@ export function OrderSlide(p: Props) {
 
   useEffect(() => { setView('front'); setSheet(false); }, [order.id, order.version]);
 
+  // ---- approver's drawings (pen / line / circle / text) ----
+  const [marking, setMarking] = useState(false);
+  const [tool, setTool] = useState<DrawTool>(null);
+  const [color, setColor] = useState(COLORS[0]);
+  const [marks, setMarks] = useState<Marks>(order.marks);
+  const [dirty, setDirty] = useState(false);
+  const [textAt, setTextAt] = useState<{ view: 'front' | 'side'; pt: number[] } | null>(null);
+  const [textVal, setTextVal] = useState('');
+  const serverKey = JSON.stringify(order.marks);
+  useEffect(() => { if (!dirty) setMarks(order.marks); }, [serverKey]);
+  const change = (m: Marks) => { setMarks(m); setDirty(true); };
+  const addShape = (v: 'front' | 'side', sh: Shape) => change({ ...marks, [v]: [...marks[v], sh] });
+  const saveMarks = async () => {
+    if (!dirty) return;
+    await p.onSaveMarks?.(marks);
+    setDirty(false);
+  };
+  const doneMarking = () => { setMarking(false); setTool(null); saveMarks().catch(() => {}); };
+  const markCount = marks.front.length + marks.side.length;
+
   const onSwipe = (dir: 'left' | 'right' | 'up' | 'down') => {
     if (sheet) { if (dir === 'down') setSheet(false); return; }
     if (dir === 'left') setView('side');
@@ -71,7 +98,48 @@ export function OrderSlide(p: Props) {
       exiting={p.direction === 'next' ? SlideOutUp.duration(260) : SlideOutDown.duration(260)}>
       <View style={st.viewport}>
         <ZoomableViewer ref={viewer} frontUri={front} sideUri={side} view={view} onSwipe={onSwipe}
-          onDoubleTap={() => setSheet((x) => !x)} onSingleTap={() => sheet && setSheet(false)} onZoomChange={setZoomed} />
+          onDoubleTap={() => setSheet((x) => !x)} onSingleTap={() => sheet && setSheet(false)} onZoomChange={setZoomed}
+          marks={marks} drawTool={marking ? tool : null} drawColor={color} onAddShape={addShape}
+          onTextAt={(v, pt) => { setTextVal(''); setTextAt({ view: v, pt }); }} />
+
+        {p.canMark && !marking && (
+          <Pressable style={st.markBtn} onPress={() => { setMarking(true); setTool('pen'); setSheet(false); }}>
+            <Text style={st.markBtnText}>✎{markCount ? ` ${markCount}` : ''}</Text>
+          </Pressable>
+        )}
+        {!p.canMark && markCount > 0 && (
+          <View pointerEvents="none" style={st.markInfo}><Text style={st.markInfoText}>✎ {markCount} approver mark{markCount > 1 ? 's' : ''}</Text></View>
+        )}
+        {marking && (
+          <View style={st.tools}>
+            {TOOLS.map((t) => (
+              <Pressable key={t.id ?? 'move'} onPress={() => setTool(t.id)} style={[st.toolBtn, tool === t.id && st.toolOn]}>
+                <Text style={st.toolTxt}>{t.icon}</Text>
+              </Pressable>
+            ))}
+            <Pressable onPress={() => setColor(COLORS[(COLORS.indexOf(color) + 1) % COLORS.length])} style={st.toolBtn}>
+              <View style={[st.colorDot, { backgroundColor: color }]} />
+            </Pressable>
+            <Pressable onPress={() => marks[view].length && change({ ...marks, [view]: marks[view].slice(0, -1) })} style={st.toolBtn}><Text style={st.toolTxt}>↶</Text></Pressable>
+            <Pressable onPress={() => markCount && change({ front: [], side: [] })} style={st.toolBtn}><Text style={st.toolTxt}>🗑</Text></Pressable>
+            <Pressable onPress={doneMarking} style={[st.toolBtn, st.toolDone]}><Text style={[st.toolTxt, { color: '#052e16' }]}>✓</Text></Pressable>
+          </View>
+        )}
+        <Modal visible={!!textAt} transparent animationType="fade" onRequestClose={() => setTextAt(null)}>
+          <View style={st.textModal}>
+            <View style={st.textBox}>
+              <Text style={st.sheetTitle}>Text to put on the photo</Text>
+              <TextInput style={st.textInput} value={textVal} onChangeText={setTextVal} autoFocus maxLength={60}
+                placeholder="e.g. line too low" placeholderTextColor="#6b7280"
+                onSubmitEditing={() => { if (textAt && textVal.trim()) addShape(textAt.view, { type: 'text', color, a: textAt.pt, text: textVal.trim() }); setTextAt(null); }} />
+              <View style={st.btns}>
+                <Pressable style={[st.btn, st.neutral, st.small]} onPress={() => setTextAt(null)}><Text style={st.btnText}>Cancel</Text></Pressable>
+                <Pressable style={[st.btn, st.approve, st.small]} onPress={() => { if (textAt && textVal.trim()) addShape(textAt.view, { type: 'text', color, a: textAt.pt, text: textVal.trim() }); setTextAt(null); }}>
+                  <Text style={[st.btnText, { color: '#052e16' }]}>Add</Text></Pressable>
+              </View>
+            </View>
+          </View>
+        </Modal>
 
         <View pointerEvents="none" style={st.viewTag}><Text style={st.viewTagText}>{view.toUpperCase()} VIEW</Text></View>
         <View pointerEvents="none" style={[st.badge, st[`badge_${order.status}` as 'badge_pending']]}>
@@ -119,12 +187,24 @@ export function OrderSlide(p: Props) {
           v{order.version} by <Text style={st.metaB}>{order.coordinator || '—'}</Text> · {fmt(order.exportedAt)}
           {order.rejectCount ? ` · rejected ${order.rejectCount}× before` : ''}
         </Text>
+        {(order.rise.length > 0 || !!order.riseSpecific) && (
+          <View style={st.riseRow}>
+            <Text style={st.riseLabel}>Rise</Text>
+            {order.rise.map((r) => <View key={r} style={st.chip}><Text style={st.chipText}>{r}</Text></View>)}
+            {!!order.riseSpecific && <View style={[st.chip, st.chipAlt]}><Text style={st.chipText}>Specific: {order.riseSpecific}</Text></View>}
+          </View>
+        )}
+        {!!order.note && (
+          <ScrollView style={st.noteBox} nestedScrollEnabled>
+            <Text style={st.noteText}><Text style={st.noteLabel}>Note  </Text>{order.note}</Text>
+          </ScrollView>
+        )}
         {pending && p.canDecide ? (
           <View style={st.btns}>
-            <Pressable disabled={p.busy} onPress={p.onReject} style={({ pressed }) => [st.btn, st.reject, (pressed || p.busy) && st.pressed]}>
+            <Pressable disabled={p.busy} onPress={() => { setMarking(false); setTool(null); saveMarks().catch(() => {}).then(p.onReject); }} style={({ pressed }) => [st.btn, st.reject, (pressed || p.busy) && st.pressed]}>
               <Text style={st.btnText}>✕  Reject</Text>
             </Pressable>
-            <Pressable disabled={p.busy} onPress={p.onApprove} style={({ pressed }) => [st.btn, st.approve, (pressed || p.busy) && st.pressed]}>
+            <Pressable disabled={p.busy} onPress={() => { setMarking(false); setTool(null); saveMarks().catch(() => {}).then(p.onApprove); }} style={({ pressed }) => [st.btn, st.approve, (pressed || p.busy) && st.pressed]}>
               <Text style={[st.btnText, { color: '#052e16' }]}>✓  Approve</Text>
             </Pressable>
           </View>
@@ -247,6 +327,27 @@ const st = StyleSheet.create({
   pos: { color: '#9aa3b5', fontSize: 12 },
   meta: { color: '#9aa3b5', fontSize: 12, marginTop: 2 },
   metaB: { color: '#f3f4f6', fontWeight: '600' },
+  markBtn: { position: 'absolute', left: 10, bottom: 28, minWidth: 42, height: 42, borderRadius: 21, paddingHorizontal: 10, backgroundColor: 'rgba(0,0,0,.6)', alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: 'rgba(255,255,255,.25)' },
+  markBtnText: { color: '#fff', fontSize: 18, fontWeight: '700' },
+  markInfo: { position: 'absolute', left: 10, bottom: 28, backgroundColor: 'rgba(0,0,0,.6)', borderRadius: 999, paddingHorizontal: 10, paddingVertical: 5 },
+  markInfoText: { color: '#fff', fontSize: 12, fontWeight: '700' },
+  tools: { position: 'absolute', left: 8, top: 46, gap: 6, backgroundColor: 'rgba(0,0,0,.55)', borderRadius: 12, padding: 5 },
+  toolBtn: { width: 38, height: 38, borderRadius: 9, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(255,255,255,.12)' },
+  toolOn: { backgroundColor: '#3b82f6' },
+  toolDone: { backgroundColor: '#22c55e' },
+  toolTxt: { color: '#fff', fontSize: 18, fontWeight: '700' },
+  colorDot: { width: 20, height: 20, borderRadius: 10, borderWidth: 2, borderColor: '#fff' },
+  textModal: { flex: 1, backgroundColor: 'rgba(0,0,0,.6)', justifyContent: 'center', padding: 24 },
+  textBox: { backgroundColor: '#161a24', borderRadius: 14, padding: 16, maxWidth: 420, width: '100%', alignSelf: 'center' },
+  textInput: { marginTop: 10, backgroundColor: '#0f1219', color: '#f3f4f6', borderWidth: 1, borderColor: '#2a3040', borderRadius: 10, padding: 10, fontSize: 15 },
+  riseRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 6, marginTop: 8 },
+  riseLabel: { color: '#9aa3b5', fontSize: 12, fontWeight: '700', marginRight: 2 },
+  chip: { backgroundColor: '#1d4ed8', borderRadius: 999, paddingHorizontal: 10, paddingVertical: 4 },
+  chipAlt: { backgroundColor: '#7c3aed' },
+  chipText: { color: '#fff', fontSize: 12, fontWeight: '700' },
+  noteBox: { marginTop: 8, maxHeight: 70, backgroundColor: '#0f1219', borderRadius: 8, borderLeftWidth: 4, borderLeftColor: '#f59e0b', paddingHorizontal: 10, paddingVertical: 7 },
+  noteLabel: { color: '#fbbf24', fontWeight: '800', fontSize: 12 },
+  noteText: { color: '#f3f4f6', fontSize: 13, lineHeight: 18 },
   btns: { flexDirection: 'row', gap: 10, marginTop: 10 },
   btn: { flex: 1, borderRadius: 12, paddingVertical: 14, alignItems: 'center' },
   approve: { backgroundColor: '#22c55e' },

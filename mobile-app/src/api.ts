@@ -5,7 +5,7 @@ import {
 import { createUserWithEmailAndPassword } from 'firebase/auth';
 import { auth, db } from './firebase';
 import * as AI from './aiCore';
-import type { Order, Profile, Role, Status } from './types';
+import type { Marks, Order, Profile, Role, Status } from './types';
 
 const DAY = 24 * 3600 * 1000;
 const iso = (t: any) => (t && typeof t.toDate === 'function' ? t.toDate().toISOString() : typeof t === 'string' ? t : '');
@@ -19,6 +19,8 @@ function toOrder(id: string, d: any): Order {
     totalCount: Number(d.totalCount ?? 0), measurements: d.measurements ?? [],
     images: d.images ?? { front: `v${d.version}_front`, side: `v${d.version}_side` }, ai: d.ai ?? null,
     archivedAt: iso(d.archivedAt), archivedBy: d.archivedBy ?? '', deleteAt: iso(d.deleteAt),
+    rise: Array.isArray(d.rise) ? d.rise : [], riseSpecific: d.riseSpecific ?? '', note: d.note ?? '',
+    marks: { front: d.marks?.front ?? [], side: d.marks?.side ?? [] },
   };
 }
 
@@ -221,3 +223,6 @@ export async function purgeExpired() {
   }
   return due.size;
 }
+
+/** Saves the approver's drawings on the photos (shown to everyone; cleared by the next export). */
+export const saveMarks = (o: Order, marks: Marks) => updateDoc(doc(db, 'orders', o.id), { marks });
