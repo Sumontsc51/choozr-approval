@@ -18,12 +18,13 @@ interface Props {
   marks?: Marks;                                   // drawings shown on the photos
   drawTool?: DrawTool;                             // when set, touches draw instead of swiping
   drawColor?: string;
+  drawWidth?: number;                              // line thickness for new shapes
   onAddShape?: (view: 'front' | 'side', s: Shape) => void;
   onTextAt?: (view: 'front' | 'side', pt: number[]) => void;
 }
 
 const MAX = 6;
-const STROKE = 3;
+const STROKE = 2;   // default line thickness (shapes saved before the width option)
 
 /** Natural width / height of an image (needed to place drawings exactly on the photo). */
 function useAspect(uri: string | null) {
@@ -44,19 +45,22 @@ function fit(aspect: number, pw: number, ph: number) {
   return { x: (pw - w) / 2, y: (ph - h) / 2, w, h };
 }
 
-function Seg({ x1, y1, x2, y2, color }: { x1: number; y1: number; x2: number; y2: number; color: string }) {
-  const len = Math.hypot(x2 - x1, y2 - y1);
+function Seg({ x1, y1, x2, y2, color, w }: { x1: number; y1: number; x2: number; y2: number; color: string; w: number }) {
+  // Each piece is a little longer than the gap and has round ends, so pieces overlap at the
+  // joints and a pen stroke reads as one continuous line.
+  const len = Math.hypot(x2 - x1, y2 - y1) + w;
   return <View style={{
-    position: 'absolute', left: (x1 + x2) / 2 - len / 2, top: (y1 + y2) / 2 - STROKE / 2, width: len, height: STROKE,
-    backgroundColor: color, borderRadius: STROKE / 2, transform: [{ rotate: `${Math.atan2(y2 - y1, x2 - x1)}rad` }],
+    position: 'absolute', left: (x1 + x2) / 2 - len / 2, top: (y1 + y2) / 2 - w / 2, width: len, height: w,
+    backgroundColor: color, borderRadius: w / 2, transform: [{ rotate: `${Math.atan2(y2 - y1, x2 - x1)}rad` }],
   }} />;
 }
 
 function ShapeView({ s, W, H }: { s: Shape; W: number; H: number }) {
-  if (s.type === 'line') return <Seg x1={s.a[0] * W} y1={s.a[1] * H} x2={s.b[0] * W} y2={s.b[1] * H} color={s.color} />;
+  const w = (s as { w?: number }).w ?? STROKE;
+  if (s.type === 'line') return <Seg x1={s.a[0] * W} y1={s.a[1] * H} x2={s.b[0] * W} y2={s.b[1] * H} color={s.color} w={w} />;
   if (s.type === 'circle') {
     const r = Math.max(2, s.r * W);
-    return <View style={{ position: 'absolute', left: s.a[0] * W - r, top: s.a[1] * H - r, width: r * 2, height: r * 2, borderRadius: r, borderWidth: STROKE, borderColor: s.color }} />;
+    return <View style={{ position: 'absolute', left: s.a[0] * W - r, top: s.a[1] * H - r, width: r * 2, height: r * 2, borderRadius: r, borderWidth: w, borderColor: s.color }} />;
   }
   if (s.type === 'text') {
     return <View style={{ position: 'absolute', left: s.a[0] * W, top: s.a[1] * H, backgroundColor: 'rgba(0,0,0,.65)', borderRadius: 4, paddingHorizontal: 5, paddingVertical: 2, maxWidth: W * 0.8 }}>
@@ -65,13 +69,13 @@ function ShapeView({ s, W, H }: { s: Shape; W: number; H: number }) {
   }
   const segs = [];
   for (let i = 0; i + 3 < s.pts.length; i += 2) {
-    segs.push(<Seg key={i} x1={s.pts[i] * W} y1={s.pts[i + 1] * H} x2={s.pts[i + 2] * W} y2={s.pts[i + 3] * H} color={s.color} />);
+    segs.push(<Seg key={i} x1={s.pts[i] * W} y1={s.pts[i + 1] * H} x2={s.pts[i + 2] * W} y2={s.pts[i + 3] * H} color={s.color} w={w} />);
   }
   return <>{segs}</>;
 }
 
 export const ZoomableViewer = forwardRef<ZoomableHandle, Props>(function ZoomableViewer(
-  { frontUri, sideUri, view, onSwipe, onDoubleTap, onSingleTap, onZoomChange, marks, drawTool, drawColor = '#ff2d2d', onAddShape, onTextAt }, ref) {
+  { frontUri, sideUri, view, onSwipe, onDoubleTap, onSingleTap, onZoomChange, marks, drawTool, drawColor = '#ff2d2d', drawWidth = STROKE, onAddShape, onTextAt }, ref) {
   const { width } = useWindowDimensions();
   const scale = useSharedValue(1);
   const tx = useSharedValue(0);
@@ -168,9 +172,9 @@ export const ZoomableViewer = forwardRef<ZoomableHandle, Props>(function Zoomabl
   const drawPan = Gesture.Pan().runOnJS(true).minDistance(0).maxPointers(1)
     .onBegin((e) => {
       const p = toImage(e.x, e.y);
-      if (drawTool === 'pen') setShape({ type: 'pen', color: drawColor, pts: [p[0], p[1]] });
-      else if (drawTool === 'line') setShape({ type: 'line', color: drawColor, a: p, b: p });
-      else if (drawTool === 'circle') setShape({ type: 'circle', color: drawColor, a: p, r: 0 });
+      if (drawTool === 'pen') setShape({ type: 'pen', color: drawColor, w: drawWidth, pts: [p[0], p[1]] });
+      else if (drawTool === 'line') setShape({ type: 'line', color: drawColor, w: drawWidth, a: p, b: p });
+      else if (drawTool === 'circle') setShape({ type: 'circle', color: drawColor, w: drawWidth, a: p, r: 0 });
     })
     .onUpdate((e) => {
       const c = curRef.current;
@@ -178,7 +182,7 @@ export const ZoomableViewer = forwardRef<ZoomableHandle, Props>(function Zoomabl
       const p = toImage(e.x, e.y);
       if (c.type === 'pen') {
         const n = c.pts.length;
-        if (Math.hypot(p[0] - c.pts[n - 2], p[1] - c.pts[n - 1]) < 0.012) return;   // keep strokes light
+        if (Math.hypot(p[0] - c.pts[n - 2], p[1] - c.pts[n - 1]) < 0.004) return;   // skip only tiny moves so the stroke stays smooth
         setShape({ ...c, pts: [...c.pts, p[0], p[1]] });
       } else if (c.type === 'line') setShape({ ...c, b: p });
       else if (c.type === 'circle') {

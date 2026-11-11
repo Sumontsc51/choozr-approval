@@ -32,6 +32,9 @@ const VERDICT = {
 } as const;
 
 const COLORS = ['#ff2d2d', '#ffe600', '#22d3ee', '#ffffff'];
+const WIDTHS = [1, 2, 3.5, 5, 8];   // line thickness steps (thin … wide)
+/** Measurements are shown in inches (converted from cm when needed). */
+const inches = (m: { value: string; cm: number | null }) => (m.cm != null && m.cm > 0 ? `${(m.cm / 2.54).toFixed(2)} in` : m.value);
 const TOOLS: { id: DrawTool; icon: string }[] = [
   { id: null, icon: '✋' }, { id: 'pen', icon: '✎' }, { id: 'line', icon: '╱' }, { id: 'circle', icon: '◯' }, { id: 'text', icon: 'T' },
 ];
@@ -59,7 +62,7 @@ export function OrderSlide(p: Props) {
   useEffect(() => { setView('front'); setSheet(false); }, [order.id, order.version]);
 
   // ---- approver's drawings (pen / line / circle / text) ----
-  const [marking, setMarking] = useState(false);
+  const [lineW, setLineW] = useState(WIDTHS[1]);
   const [tool, setTool] = useState<DrawTool>(null);
   const [color, setColor] = useState(COLORS[0]);
   const [marks, setMarks] = useState<Marks>(order.marks);
@@ -75,7 +78,13 @@ export function OrderSlide(p: Props) {
     await p.onSaveMarks?.(marks);
     setDirty(false);
   };
-  const doneMarking = () => { setMarking(false); setTool(null); saveMarks().catch(() => {}); };
+  // drawings save themselves a moment after the last change
+  useEffect(() => {
+    if (!dirty) return;
+    const t = setTimeout(() => { saveMarks().catch(() => {}); }, 1200);
+    return () => clearTimeout(t);
+  }, [marks, dirty]);
+  const stepWidth = (d: number) => setLineW(WIDTHS[Math.max(0, Math.min(WIDTHS.length - 1, WIDTHS.indexOf(lineW) + d))]);
   const markCount = marks.front.length + marks.side.length;
 
   const onSwipe = (dir: 'left' | 'right' | 'up' | 'down') => {
@@ -99,18 +108,13 @@ export function OrderSlide(p: Props) {
       <View style={st.viewport}>
         <ZoomableViewer ref={viewer} frontUri={front} sideUri={side} view={view} onSwipe={onSwipe}
           onDoubleTap={() => setSheet((x) => !x)} onSingleTap={() => sheet && setSheet(false)} onZoomChange={setZoomed}
-          marks={marks} drawTool={marking ? tool : null} drawColor={color} onAddShape={addShape}
+          marks={marks} drawTool={p.canMark ? tool : null} drawColor={color} drawWidth={lineW} onAddShape={addShape}
           onTextAt={(v, pt) => { setTextVal(''); setTextAt({ view: v, pt }); }} />
 
-        {p.canMark && !marking && (
-          <Pressable style={st.markBtn} onPress={() => { setMarking(true); setTool('pen'); setSheet(false); }}>
-            <Text style={st.markBtnText}>✎{markCount ? ` ${markCount}` : ''}</Text>
-          </Pressable>
-        )}
         {!p.canMark && markCount > 0 && (
           <View pointerEvents="none" style={st.markInfo}><Text style={st.markInfoText}>✎ {markCount} approver mark{markCount > 1 ? 's' : ''}</Text></View>
         )}
-        {marking && (
+        {p.canMark && (
           <View style={st.tools}>
             {TOOLS.map((t) => (
               <Pressable key={t.id ?? 'move'} onPress={() => setTool(t.id)} style={[st.toolBtn, tool === t.id && st.toolOn]}>
@@ -120,9 +124,15 @@ export function OrderSlide(p: Props) {
             <Pressable onPress={() => setColor(COLORS[(COLORS.indexOf(color) + 1) % COLORS.length])} style={st.toolBtn}>
               <View style={[st.colorDot, { backgroundColor: color }]} />
             </Pressable>
+            <Pressable onPress={() => stepWidth(-1)} style={st.toolBtn} disabled={lineW === WIDTHS[0]}>
+              <View style={[st.widthBar, { height: 1.5 }, lineW === WIDTHS[0] && st.dim]} /><Text style={[st.widthTxt, lineW === WIDTHS[0] && st.dimTxt]}>thin</Text>
+            </Pressable>
+            <Pressable onPress={() => stepWidth(1)} style={st.toolBtn} disabled={lineW === WIDTHS[WIDTHS.length - 1]}>
+              <View style={[st.widthBar, { height: 6 }, lineW === WIDTHS[WIDTHS.length - 1] && st.dim]} /><Text style={[st.widthTxt, lineW === WIDTHS[WIDTHS.length - 1] && st.dimTxt]}>wide</Text>
+            </Pressable>
+            <View style={st.widthNow}><View style={{ width: 22, height: lineW, borderRadius: lineW / 2, backgroundColor: color }} /></View>
             <Pressable onPress={() => marks[view].length && change({ ...marks, [view]: marks[view].slice(0, -1) })} style={st.toolBtn}><Text style={st.toolTxt}>↶</Text></Pressable>
             <Pressable onPress={() => markCount && change({ front: [], side: [] })} style={st.toolBtn}><Text style={st.toolTxt}>🗑</Text></Pressable>
-            <Pressable onPress={doneMarking} style={[st.toolBtn, st.toolDone]}><Text style={[st.toolTxt, { color: '#052e16' }]}>✓</Text></Pressable>
           </View>
         )}
         <Modal visible={!!textAt} transparent animationType="fade" onRequestClose={() => setTextAt(null)}>
@@ -169,7 +179,7 @@ export function OrderSlide(p: Props) {
                 return (
                   <View key={i} style={[st.row, f ? st.rowFlag : null]}>
                     <Text style={[st.rowName, f ? { color: '#fcd34d' } : null]}>{f ? '⚠ ' : ''}{m.name}</Text>
-                    <Text style={[st.rowVal, f ? { color: '#fcd34d' } : null]}>{m.value}</Text>
+                    <Text style={[st.rowVal, f ? { color: '#fcd34d' } : null]}>{inches(m)}</Text>
                   </View>
                 );
               })}
@@ -201,10 +211,10 @@ export function OrderSlide(p: Props) {
         )}
         {pending && p.canDecide ? (
           <View style={st.btns}>
-            <Pressable disabled={p.busy} onPress={() => { setMarking(false); setTool(null); saveMarks().catch(() => {}).then(p.onReject); }} style={({ pressed }) => [st.btn, st.reject, (pressed || p.busy) && st.pressed]}>
+            <Pressable disabled={p.busy} onPress={() => { setTool(null); saveMarks().catch(() => {}).then(p.onReject); }} style={({ pressed }) => [st.btn, st.reject, (pressed || p.busy) && st.pressed]}>
               <Text style={st.btnText}>✕  Reject</Text>
             </Pressable>
-            <Pressable disabled={p.busy} onPress={() => { setMarking(false); setTool(null); saveMarks().catch(() => {}).then(p.onApprove); }} style={({ pressed }) => [st.btn, st.approve, (pressed || p.busy) && st.pressed]}>
+            <Pressable disabled={p.busy} onPress={() => { setTool(null); saveMarks().catch(() => {}).then(p.onApprove); }} style={({ pressed }) => [st.btn, st.approve, (pressed || p.busy) && st.pressed]}>
               <Text style={[st.btnText, { color: '#052e16' }]}>✓  Approve</Text>
             </Pressable>
           </View>
@@ -327,15 +337,17 @@ const st = StyleSheet.create({
   pos: { color: '#9aa3b5', fontSize: 12 },
   meta: { color: '#9aa3b5', fontSize: 12, marginTop: 2 },
   metaB: { color: '#f3f4f6', fontWeight: '600' },
-  markBtn: { position: 'absolute', left: 10, bottom: 28, minWidth: 42, height: 42, borderRadius: 21, paddingHorizontal: 10, backgroundColor: 'rgba(0,0,0,.6)', alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: 'rgba(255,255,255,.25)' },
-  markBtnText: { color: '#fff', fontSize: 18, fontWeight: '700' },
   markInfo: { position: 'absolute', left: 10, bottom: 28, backgroundColor: 'rgba(0,0,0,.6)', borderRadius: 999, paddingHorizontal: 10, paddingVertical: 5 },
   markInfoText: { color: '#fff', fontSize: 12, fontWeight: '700' },
-  tools: { position: 'absolute', left: 8, top: 46, gap: 6, backgroundColor: 'rgba(0,0,0,.55)', borderRadius: 12, padding: 5 },
-  toolBtn: { width: 38, height: 38, borderRadius: 9, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(255,255,255,.12)' },
+  tools: { position: 'absolute', left: 6, top: 44, gap: 4, backgroundColor: 'rgba(0,0,0,.55)', borderRadius: 12, padding: 5 },
+  toolBtn: { width: 34, height: 34, borderRadius: 8, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(255,255,255,.12)' },
   toolOn: { backgroundColor: '#3b82f6' },
-  toolDone: { backgroundColor: '#22c55e' },
-  toolTxt: { color: '#fff', fontSize: 18, fontWeight: '700' },
+  widthBar: { width: 20, backgroundColor: '#fff', borderRadius: 3 },
+  widthTxt: { color: '#d1d5db', fontSize: 8, marginTop: 3 },
+  widthNow: { height: 14, alignItems: 'center', justifyContent: 'center' },
+  dim: { backgroundColor: '#6b7280' },
+  dimTxt: { color: '#6b7280' },
+  toolTxt: { color: '#fff', fontSize: 16, fontWeight: '700' },
   colorDot: { width: 20, height: 20, borderRadius: 10, borderWidth: 2, borderColor: '#fff' },
   textModal: { flex: 1, backgroundColor: 'rgba(0,0,0,.6)', justifyContent: 'center', padding: 24 },
   textBox: { backgroundColor: '#161a24', borderRadius: 14, padding: 16, maxWidth: 420, width: '100%', alignSelf: 'center' },

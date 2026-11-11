@@ -161,7 +161,7 @@
           var ratio = m.cm / h.cm;
           if (ratio < rng[1] || ratio > rng[2]) {
             issues.push({ measurement: m.label, view: 'unknown', severity: 'high', source: 'stats',
-              problem: 'Implausible for a ' + h.cm + ' cm tall person (' + m.cm + ' cm). Point probably misplaced.' });
+              problem: 'Implausible for a ' + (h.cm / 2.54).toFixed(1) + ' in tall person (' + (m.cm / 2.54).toFixed(1) + ' in). Point probably misplaced.' });
             flags[m.label] = 'implausible';
           }
         });

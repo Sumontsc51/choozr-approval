@@ -54,9 +54,9 @@ export interface Order {
 
 /** A drawing on a photo. Coordinates are 0..1 of the image (x of width, y of height). */
 export type Shape =
-  | { type: 'pen'; color: string; pts: number[] }                 // flat [x0,y0,x1,y1,…]
-  | { type: 'line'; color: string; a: number[]; b: number[] }
-  | { type: 'circle'; color: string; a: number[]; r: number }     // centre, radius as a share of the width
+  | { type: 'pen'; color: string; w?: number; pts: number[] }                 // flat [x0,y0,x1,y1,…]; w = thickness
+  | { type: 'line'; color: string; w?: number; a: number[]; b: number[] }
+  | { type: 'circle'; color: string; w?: number; a: number[]; r: number }     // centre, radius as a share of the width
   | { type: 'text'; color: string; a: number[]; text: string };
 export interface Marks { front: Shape[]; side: Shape[]; }
 
