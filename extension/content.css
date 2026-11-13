@@ -19,12 +19,6 @@
 #cae-panel .cae-status.cae-warn { color: #b45309; }
 #cae-panel .cae-sub { color: #666; font-size: 11px; margin-top: 4px; min-height: 14px; max-width: 260px; }
 
-#cae-tag {
-  background: #fee2e2; color: #7f1d1d; border: 1px solid #fca5a5; border-left: 6px solid #dc2626;
-  border-radius: 8px; padding: 10px 14px; margin: 8px 0 12px; font: 14px/1.4 system-ui, sans-serif;
-}
-#cae-tag b { color: #b91c1c; letter-spacing: .04em; }
-#cae-tag span { display: block; margin-top: 4px; color: #991b1b; font-size: 13px; }
 
 .cae-toast {
   position: fixed; left: 50%; bottom: 90px; transform: translate(-50%, 20px); opacity: 0;
@@ -70,3 +64,28 @@
 #cae-panel #cae-note { resize: vertical; min-height: 34px; }
 /* the AI tag sits at the top of the card (clear of the value) and disappears while the mouse is on the card */
 .measurement-card.cae-flag:hover::after { opacity: 0; }
+
+/* v3.4: reject note inside the panel + rejected orders list */
+#cae-panel { max-height: calc(100vh - 36px); overflow-y: auto; }
+#cae-panel.cae-no-order .cae-order { display: none; }
+#cae-panel .cae-reject { margin-top: 6px; background: #fee2e2; border-left: 4px solid #dc2626; border-radius: 6px; padding: 6px 8px; font-size: 12px; color: #7f1d1d; }
+#cae-panel .cae-reject b { color: #b91c1c; text-transform: uppercase; letter-spacing: .04em; }
+#cae-panel .cae-reason { font-style: italic; margin-top: 3px; font-size: 13px; color: #111; max-height: 90px; overflow: auto; }
+#cae-panel .cae-muted { color: #991b1b; opacity: .75; font-size: 11px; margin-top: 3px; font-style: normal; }
+#cae-panel .cae-rej { margin-top: 8px; border-top: 1px solid #e5e7eb; padding-top: 6px; }
+#cae-panel .cae-rej-head { width: 100%; display: flex; align-items: center; gap: 6px; background: none; border: 0; padding: 2px 0; cursor: pointer; font: 700 12px system-ui, sans-serif; color: #b91c1c; }
+#cae-panel .cae-rej-head b { background: #dc2626; color: #fff; border-radius: 999px; padding: 0 7px; font-size: 11px; line-height: 17px; }
+#cae-panel .cae-rej-head span { margin-left: auto; color: #6b7280; transition: transform .15s; }
+#cae-panel .cae-rej.open .cae-rej-head span { transform: rotate(180deg); }
+#cae-panel .cae-rej-cols, #cae-panel .cae-rej-list { display: none; }
+#cae-panel .cae-rej.open .cae-rej-cols { display: grid; }
+#cae-panel .cae-rej.open .cae-rej-list { display: block; }
+#cae-panel .cae-rej-cols, #cae-panel .cae-rej-row { grid-template-columns: 62px 1fr 1fr; gap: 6px; }
+#cae-panel .cae-rej-cols { font-size: 10px; font-weight: 700; color: #6b7280; text-transform: uppercase; padding: 4px 6px 2px; }
+#cae-panel .cae-rej-list { max-height: 210px; overflow-y: auto; }
+#cae-panel .cae-rej-row { display: grid; padding: 5px 6px; border-radius: 6px; font-size: 12px; color: #111; cursor: pointer; text-decoration: none; }
+#cae-panel .cae-rej-row:hover { background: #f1f5f9; }
+#cae-panel .cae-rej-row.cur { background: #fee2e2; }
+#cae-panel .cae-rej-row .no { font-weight: 700; color: #1e40af; }
+#cae-panel .cae-rej-row .fn, #cae-panel .cae-rej-row .ln { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#cae-panel .cae-rej-row .why { grid-column: 1 / -1; color: #6b7280; font-size: 11px; font-style: italic; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

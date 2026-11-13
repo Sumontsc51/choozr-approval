@@ -148,6 +148,7 @@
       } });
       formDirty = false;
       toast(`Exported v${s.version} to the approver`, 'ok');
+      loadRejected();
       render(s);
       schedulePoll(20000);
     } catch (e) {
@@ -170,7 +171,9 @@
     p.innerHTML = `
       <div class="cae-head"><span class="cae-status" id="cae-status">…</span><button class="cae-min" id="cae-min" title="Minimise">–</button></div>
       <div class="cae-body">
+        <div class="cae-order">
         <div class="cae-sub" id="cae-sub"></div>
+        <div class="cae-reject" id="cae-reject" style="display:none"></div>
         <div class="cae-ai" id="cae-ai"></div>
         <div class="cae-form">
           <div class="cae-label">Rise</div>
@@ -182,11 +185,23 @@
           <button class="cae-btn" id="cae-export">Export to approver</button>
           <button class="cae-gear" id="cae-settings" title="Settings">⚙</button>
         </div>
+        </div>
+        <div class="cae-rej" id="cae-rej" style="display:none">
+          <button class="cae-rej-head" id="cae-rej-head">Rejected orders <b id="cae-rej-count">0</b> <span>▾</span></button>
+          <div class="cae-rej-cols"><span>Order</span><span>First name</span><span>Last name</span></div>
+          <div class="cae-rej-list" id="cae-rej-list"></div>
+        </div>
       </div>`;
     document.body.appendChild(p);
     p.querySelector('#cae-export').addEventListener('click', doExport);
     p.querySelector('#cae-settings').addEventListener('click', () => send({ type: 'openOptions' }).catch(() => {}));
     p.querySelector('#cae-min').addEventListener('click', () => p.classList.toggle('cae-collapsed'));
+    p.querySelector('#cae-rej-head').addEventListener('click', () => p.querySelector('#cae-rej').classList.toggle('open'));
+    p.querySelector('#cae-rej-list').addEventListener('click', (e) => {
+      const row = e.target.closest('.cae-rej-row');
+      if (!row || !row.dataset.cust) return;
+      location.href = `${location.origin}/measurements/customer/${row.dataset.cust}/measurement/${row.dataset.id}`;
+    });
     p.querySelector('.cae-form').addEventListener('input', () => { formDirty = true; });
     p.querySelector('#cae-ai').addEventListener('click', async (e) => {
       if (!e.target.closest('[data-recheck]')) return;
@@ -250,14 +265,40 @@
     else if (s.status === 'rejected') { el.textContent = `REJECTED${v}`; setSub(`by ${s.decidedBy || '—'} · ${fmt(s.decidedAt)}`); showRejectedTag(s); }
     renderAi(s.ai, s.version);
   }
-  const removeTag = () => document.getElementById('cae-tag')?.remove();
+  // The reject note lives inside the floating panel, so it never moves anything on the Choozr page.
+  const removeTag = () => { const r = document.getElementById('cae-reject'); if (r) { r.innerHTML = ''; r.style.display = 'none'; } };
   function showRejectedTag(s) {
-    const tag = document.createElement('div');
-    tag.id = 'cae-tag';
-    tag.innerHTML = `<b>REJECTED</b> by ${esc(s.decidedBy || 'approver')} · ${esc(fmt(s.decidedAt))}` +
-      (s.reason ? ` — <i>${esc(s.reason)}</i>` : '') +
-      ` <span>Rework the points, then press “Export to approver” again to resend.</span>`;
-    (document.querySelector('.measurements-wrapper') || document.body).prepend(tag);
+    const r = document.getElementById('cae-reject');
+    if (!r) return;
+    r.style.display = '';
+    r.innerHTML = `<b>Rejected</b> by ${esc(s.decidedBy || 'approver')} · ${esc(fmt(s.decidedAt))}` +
+      (s.reason ? `<div class="cae-reason">“${esc(s.reason)}”</div>` : '<div class="cae-reason cae-muted">No reason given</div>') +
+      `<div class="cae-muted">Rework the points, then export again.</div>`;
+  }
+
+  // ---------- rejected orders list (order number, first name, last name → click to open) ----------
+  let rejected = [];
+  let rejTimer = null;
+  const splitName = (full) => {
+    const parts = String(full || '').trim().split(/\s+/).filter(Boolean);
+    return parts.length > 1 ? { first: parts.slice(0, -1).join(' '), last: parts[parts.length - 1] } : { first: parts[0] || '', last: '' };
+  };
+  function renderRejected() {
+    const box = document.getElementById('cae-rej');
+    if (!box) return;
+    box.style.display = rejected.length ? '' : 'none';
+    box.querySelector('#cae-rej-count').textContent = rejected.length;
+    box.querySelector('#cae-rej-list').innerHTML = rejected.map((o) => {
+      const n = splitName(o.customer);
+      return `<a class="cae-rej-row${o.id === currentId ? ' cur' : ''}" data-id="${esc(o.id)}" data-cust="${esc(o.customerId)}" title="${esc(o.reason || 'No reason given')}">
+        <span class="no">#${esc(o.orderNo || '—')}</span><span class="fn">${esc(n.first)}</span><span class="ln">${esc(n.last)}</span>
+        ${o.reason ? `<span class="why">${esc(o.reason)}</span>` : ''}</a>`;
+    }).join('');
+  }
+  async function loadRejected() {
+    clearTimeout(rejTimer);
+    try { rejected = await send({ type: 'rejected' }); renderRejected(); } catch (_) { /* not signed in yet */ }
+    rejTimer = setTimeout(loadRejected, document.hidden ? 120000 : 45000);
   }
 
   // ---------- status polling ----------
@@ -282,17 +323,24 @@
 
   function onRoute() {
     const id = measurementId();
-    if (!id) { document.getElementById(PANEL_ID)?.remove(); removeTag(); currentId = null; clearTimeout(pollTimer); return; }
-    ensurePanel();
+    const p = ensurePanel();
+    p.classList.toggle('cae-no-order', !id);
+    if (!id) {
+      if (currentId !== null || !p.dataset.init) { p.dataset.init = '1'; currentId = null; last = null; clearTimeout(pollTimer); document.getElementById('cae-status').className = 'cae-status'; document.getElementById('cae-status').textContent = 'Choozr approvals'; renderRejected(); }
+      return;
+    }
     if (id === currentId) return;
+    p.dataset.init = '1';
     currentId = id;
     last = null;
     formDirty = false; fillForm(null);
     removeTag();
     render(null);
     document.getElementById('cae-status').textContent = 'Loading…';
+    renderRejected();
     schedulePoll(0);
   }
   setInterval(onRoute, 1000);   // SPA navigation
   onRoute();
+  loadRejected();
 })();

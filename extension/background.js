@@ -20,6 +20,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
         case 'export': data = await exportOrder(msg.payload); break;
         case 'status': data = await status(msg.id); break;
         case 'recheck': data = await recheckOrder(msg.id); break;
+        case 'rejected': data = await rejectedOrders(); break;
         case 'whoami': data = await FB.currentUser(); break;
         case 'openOptions': chrome.runtime.openOptionsPage(); data = true; break;
         default: throw new Error('unknown message');
@@ -140,6 +141,14 @@ function publicStatus(o) {
 async function status(id) {
   const d = await FB.get(`orders/${id}`);
   return d ? publicStatus(d.data) : { status: null };
+}
+/** Rejected orders waiting for rework (newest first) — shown as a click-to-open list on Choozr. */
+async function rejectedOrders() {
+  const rows = await FB.query('orders', ['status', 'EQUAL', 'rejected'], 100);
+  return rows.map((r) => ({
+    id: r.id, orderNo: r.data.orderNo || '', customer: r.data.customer || '', customerId: r.data.customerId || '',
+    reason: r.data.reason || '', decidedBy: r.data.decidedBy || '', decidedAt: r.data.decidedAt || '',
+  })).sort((a, b) => String(b.decidedAt).localeCompare(String(a.decidedAt)));
 }
 async function recheckOrder(id) {
   const d = await FB.get(`orders/${id}`);
