@@ -169,7 +169,9 @@
     }
     var note = learned
       ? 'Proportion model trained on ' + s.approved + ' approved orders.'
-      : 'Proportion model still learning (' + s.approved + '/' + minSamples + ' approved orders); only gross errors are checked.';
+      : s.approved < minSamples
+        ? 'Proportion model still learning (' + s.approved + ' of ' + minSamples + ' approved orders needed); only gross errors are checked.'
+        : 'Learned from ' + s.approved + ' approved orders, but too few of them had these measurements validated together to compare proportions (needs 4 or more measurements validated in the same export, ' + minSamples + ' times); only gross errors are checked.';
     return { issues: issues, flags: flags, scores: scores, learned: learned, note: note };
   }
 

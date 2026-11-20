@@ -14,7 +14,7 @@ export function RejectModal({ order, onCancel, onConfirm }: Props) {
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.backdrop}>
         <Pressable style={{ flex: 1 }} onPress={close} />
         <View style={styles.box}>
-          <Text style={styles.title}>Reject order #{order?.orderNo} ({order?.customer})</Text>
+          <Text style={styles.title}>Reject {order?.orderNo ? `order #${order.orderNo} (${order.customer})` : order?.customer}</Text>
           <Text style={styles.sub}>Reason (optional — shown to the measurement coordinator)</Text>
           <TextInput
             style={styles.input} multiline value={reason} onChangeText={setReason}

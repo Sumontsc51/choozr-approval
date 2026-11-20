@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Linking, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import Animated, { FadeIn, SlideInDown, SlideInUp, SlideOutDown, SlideOutUp } from 'react-native-reanimated';
 import type { AiResult, Marks, Order, Shape } from './types';
 import { DrawTool, ZoomableHandle, ZoomableViewer } from './ZoomableViewer';
@@ -18,7 +18,7 @@ interface Props {
   onRecheck: () => void;
   onArchive?: () => void;      // approved -> archive (approver/admin)
   onRestore?: () => void;      // archive -> approved (admin)
-  onDeleteNow?: () => void;    // archive -> deleted now (admin)
+  onDeleteNow?: () => void;    // admin: delete the scan for good, from any tab
   canMark?: boolean;                                  // approver/admin may draw on the photos
   onSaveMarks?: (m: Marks) => Promise<unknown>;
   busy: boolean;
@@ -190,13 +190,27 @@ export function OrderSlide(p: Props) {
 
       <View style={st.info}>
         <View style={st.titleRow}>
-          <Text style={st.title} numberOfLines={1}>Order #{order.orderNo} · {order.customer}</Text>
+          <Text style={st.title} numberOfLines={1}>{order.orderNo ? `Order #${order.orderNo} · ${order.customer}` : order.customer || 'No name'}</Text>
           <Text style={st.pos}>{p.position}</Text>
         </View>
         <Text style={st.meta}>
           v{order.version} by <Text style={st.metaB}>{order.coordinator || '—'}</Text> · {fmt(order.exportedAt)}
           {order.rejectCount ? ` · rejected ${order.rejectCount}× before` : ''}
         </Text>
+        {(!!order.pageUrl || (p.onDeleteNow && order.status !== 'archived')) && (
+          <View style={st.linkRow}>
+            {!!order.pageUrl && (
+              <Pressable onPress={() => Linking.openURL(order.pageUrl).catch(() => {})} hitSlop={6}>
+                <Text style={st.link}>↗ Open in Choozr</Text>
+              </Pressable>
+            )}
+            {p.onDeleteNow && order.status !== 'archived' && (
+              <Pressable disabled={p.busy} onPress={p.onDeleteNow} hitSlop={6}>
+                <Text style={st.linkDanger}>🗑 Delete scan</Text>
+              </Pressable>
+            )}
+          </View>
+        )}
         {(order.rise.length > 0 || !!order.riseSpecific) && (
           <View style={st.riseRow}>
             <Text style={st.riseLabel}>Rise</Text>
@@ -352,6 +366,9 @@ const st = StyleSheet.create({
   textModal: { flex: 1, backgroundColor: 'rgba(0,0,0,.6)', justifyContent: 'center', padding: 24 },
   textBox: { backgroundColor: '#161a24', borderRadius: 14, padding: 16, maxWidth: 420, width: '100%', alignSelf: 'center' },
   textInput: { marginTop: 10, backgroundColor: '#0f1219', color: '#f3f4f6', borderWidth: 1, borderColor: '#2a3040', borderRadius: 10, padding: 10, fontSize: 15 },
+  linkRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 6 },
+  link: { color: '#60a5fa', fontSize: 13, fontWeight: '700' },
+  linkDanger: { color: '#f87171', fontSize: 13, fontWeight: '700' },
   riseRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 6, marginTop: 8 },
   riseLabel: { color: '#9aa3b5', fontSize: 12, fontWeight: '700', marginRight: 2 },
   chip: { backgroundColor: '#1d4ed8', borderRadius: 999, paddingHorizontal: 10, paddingVertical: 4 },
