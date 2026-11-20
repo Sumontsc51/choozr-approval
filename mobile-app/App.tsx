@@ -13,6 +13,8 @@ import { RejectModal } from './src/RejectModal';
 import { LoginScreen, NoRoleScreen } from './src/LoginScreen';
 import { AccountScreen } from './src/AccountScreen';
 
+/** "#12184" for normal orders, the name (e.g. "Anon (+1774…)") when there is no order number. */
+const label = (o: Order) => (o.orderNo ? `#${o.orderNo}` : o.customer || 'order');
 const TABS: Status[] = ['pending', 'approved', 'rejected', 'archived'];
 type Lists = Record<Status, Order[]>;
 
@@ -46,7 +48,7 @@ function Demo() {
     return c.toDataURL('image/jpeg', 0.85);
   };
   const mk = (i: number): Order => ({
-    id: 'demo' + i, orderNo: String(10000 + i), customer: 'Demo customer ' + i, title: '', measuredAt: '', pageUrl: '', coordinator: 'Demo',
+    id: 'demo' + i, orderNo: String(10000 + i), customer: 'Demo customer ' + i, title: '', measuredAt: '', pageUrl: 'https://dash.choozr.ai/measurements', coordinator: 'Demo',
     status: 'pending', version: 1, rejectCount: 0, exportedAt: new Date().toISOString(), decidedAt: '', decidedBy: '', reason: '',
     validatedCount: 2, totalCount: 27, measurements: [{ name: 'Height', value: '170.00 cm', cm: 170 }, { name: 'Seat', value: '101.20 cm', cm: 101.2 }],
     images: { front: 'front', side: 'side' }, archivedAt: '', archivedBy: '', deleteAt: '',
@@ -63,7 +65,7 @@ function Demo() {
     <SafeAreaView style={styles.root}>
       <View style={styles.header}><Text style={[styles.tabText, { color: '#fff' }]}>Demo — gestures only, nothing is saved</Text></View>
       <View style={styles.stage}>
-        <OrderSlide key={o.id} order={o} position={`${idx + 1} / 3`} direction={dir} canDecide canMark onSaveMarks={async () => {}} busy={false}
+        <OrderSlide key={o.id} order={o} position={`${idx + 1} / 3`} direction={dir} canDecide canMark onSaveMarks={async () => {}} onDeleteNow={() => {}} busy={false}
           loadImg={async (_id, img) => svg(img === 'front' ? '#334' : '#433', `${img.toUpperCase()} ${o.orderNo}`)}
           onNext={() => { if (idx < 2) { setDir('next'); setIdx(idx + 1); } }} onPrev={() => { if (idx > 0) { setDir('prev'); setIdx(idx - 1); } }}
           onApprove={() => {}} onReject={() => {}} onRecheck={() => {}} />
@@ -154,7 +156,7 @@ function Main({ profile }: { profile: Profile }) {
       setDir('next');
       currentId.current = current[idx + 1]?.id;   // move on to the next order in the queue
       Haptics.notificationAsync(decision === 'approved' ? Haptics.NotificationFeedbackType.Success : Haptics.NotificationFeedbackType.Warning).catch(() => {});
-      say(`${decision === 'approved' ? 'Approved' : 'Rejected'} #${order.orderNo}`, decision === 'approved' ? 'ok' : 'err');
+      say(`${decision === 'approved' ? 'Approved' : 'Rejected'} ${label(order)}`, decision === 'approved' ? 'ok' : 'err');
     } catch (e: any) {
       say(e.message, 'err');
     } finally { setBusy(false); }
@@ -197,10 +199,10 @@ function Main({ profile }: { profile: Profile }) {
             onNext={() => go('next')} onPrev={() => go('prev')}
             onApprove={() => doDecide('approved')} onReject={() => setRejecting(order)}
             onRecheck={() => recheck(order).then(() => say('AI re-check requested — runs on the coordinator PC')).catch((e) => say(e.message, 'err'))}
-            onArchive={() => act(() => archiveOrder(order, profile), `Archived #${order.orderNo} — deleted in ${ARCHIVE_DAYS} days`)}
-            onRestore={isAdmin ? () => act(() => restoreOrder(order, profile), `Restored #${order.orderNo} to Approved`) : undefined}
-            onDeleteNow={isAdmin ? () => ask('Delete order', `Permanently delete order #${order.orderNo} with its photos? This cannot be undone.`,
-              () => act(() => purgeOrder(order.id, order.version), `Deleted #${order.orderNo}`)) : undefined}
+            onArchive={() => act(() => archiveOrder(order, profile), `Archived ${label(order)} — deleted in ${ARCHIVE_DAYS} days`)}
+            onRestore={isAdmin ? () => act(() => restoreOrder(order, profile), `Restored ${label(order)} to Approved`) : undefined}
+            onDeleteNow={isAdmin ? () => ask('Delete scan', `Permanently delete ${label(order)} with its photos? This cannot be undone.`,
+              () => act(() => purgeOrder(order.id, order.version), `Deleted ${label(order)}`)) : undefined}
             canMark={canDecide} onSaveMarks={(m) => saveMarks(order, m).catch((e) => say('Could not save drawings: ' + e.message, 'err'))}
             busy={busy} />
         ) : (
