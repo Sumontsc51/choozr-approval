@@ -25,13 +25,15 @@
   const customerId = () => (location.pathname.match(/\/customer\/([a-zA-Z0-9]+)/) || [])[1] || null;
 
   function orderInfo() {
-    const h2 = [...document.querySelectorAll('.measurements-wrapper h2')].find((e) => /Order\s*#/.test(e.textContent));
-    const text = h2 ? h2.textContent.replace(/\s+/g, ' ').trim() : '';
-    return {
-      orderNo: (text.match(/Order\s*#\s*(\d+)/) || [])[1] || '',
-      customer: ((text.match(/\(([^)]+)\)/) || [])[1] || '').trim(),
-      title: text.replace(/\s*metadata\s*$/i, ''),
-    };
+    const all = [...document.querySelectorAll('.measurements-wrapper h2')];
+    // Normal orders: "Order #12184 (Julia Rusciano)". Anonymous ones have no order number: "Anon (+17745587142)".
+    const h2 = all.find((e) => /Order\s*#/.test(e.textContent))
+      || all.find((e) => e.nextElementSibling && e.nextElementSibling.tagName === 'H4') || all[0];
+    const text = h2 ? h2.textContent.replace(/\s+/g, ' ').trim().replace(/\s*metadata\s*$/i, '') : '';
+    const orderNo = (text.match(/Order\s*#\s*(\d+)/) || [])[1] || '';
+    // with an order number the name is inside the brackets; without one the whole title is the name
+    const customer = orderNo ? ((text.match(/\(([^)]+)\)/) || [])[1] || '').trim() : text;
+    return { orderNo, customer, title: text };
   }
   function measurementDate() {
     const el = [...document.querySelectorAll('.measurements-wrapper span, .measurements-wrapper input')]
@@ -289,9 +291,10 @@
     box.style.display = rejected.length ? '' : 'none';
     box.querySelector('#cae-rej-count').textContent = rejected.length;
     box.querySelector('#cae-rej-list').innerHTML = rejected.map((o) => {
+      // anonymous orders ("Anon (+1774…)") keep the phone number as the last-name column
       const n = splitName(o.customer);
       return `<a class="cae-rej-row${o.id === currentId ? ' cur' : ''}" data-id="${esc(o.id)}" data-cust="${esc(o.customerId)}" title="${esc(o.reason || 'No reason given')}">
-        <span class="no">#${esc(o.orderNo || '—')}</span><span class="fn">${esc(n.first)}</span><span class="ln">${esc(n.last)}</span>
+        <span class="no">${o.orderNo ? '#' + esc(o.orderNo) : '—'}</span><span class="fn">${esc(n.first)}</span><span class="ln">${esc(n.last)}</span>
         ${o.reason ? `<span class="why">${esc(o.reason)}</span>` : ''}</a>`;
     }).join('');
   }
