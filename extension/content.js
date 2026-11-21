@@ -144,7 +144,7 @@
       setSub('Uploading + AI check…');
       const s = await send({ type: 'export', payload: {
         id, customerId: customerId(), orderNo: info.orderNo, customer: info.customer, title: info.title,
-        measuredAt: measurementDate(), pageUrl: location.href.split('#')[0],
+        measuredAt: measurementDate(), pageUrl: location.href.split('#')[0] + '#images',
         totalCount: allMeasurementsCount(), measurements: ms, front, side,
         rise: form.rise, riseSpecific: form.riseSpecific, note: form.note,
       } });
@@ -202,7 +202,7 @@
     p.querySelector('#cae-rej-list').addEventListener('click', (e) => {
       const row = e.target.closest('.cae-rej-row');
       if (!row || !row.dataset.cust) return;
-      location.href = `${location.origin}/measurements/customer/${row.dataset.cust}/measurement/${row.dataset.id}`;
+      location.href = `${location.origin}/measurements/customer/${row.dataset.cust}/measurement/${row.dataset.id}#images`;
     });
     p.querySelector('.cae-form').addEventListener('input', () => { formDirty = true; });
     p.querySelector('#cae-ai').addEventListener('click', async (e) => {
