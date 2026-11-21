@@ -200,7 +200,7 @@ export function OrderSlide(p: Props) {
         {(!!order.pageUrl || (p.onDeleteNow && order.status !== 'archived')) && (
           <View style={st.linkRow}>
             {!!order.pageUrl && (
-              <Pressable onPress={() => Linking.openURL(order.pageUrl).catch(() => {})} hitSlop={6}>
+              <Pressable onPress={() => Linking.openURL(order.pageUrl.split('#')[0] + '#images').catch(() => {})} hitSlop={6}>
                 <Text style={st.link}>↗ Open in Choozr</Text>
               </Pressable>
             )}
